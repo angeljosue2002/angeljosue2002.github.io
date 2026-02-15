@@ -31,6 +31,9 @@ function nextStep(id) {
   } else if (id === 7) {
     setMood("default"); // Earnest
     catSvg.style.transform = "translateY(8px)"; // Peeking up
+  } else if (id === 9) {
+    setMood("love");
+    catSvg.style.transform = "none";
   } else {
     setMood(""); // Default happy/normal
   }
@@ -118,3 +121,24 @@ function startSparkles() {
     }, Math.random() * 300);
   }
 }
+
+// Song gallery: stop YouTube video when leaving the card
+const songCards = document.querySelectorAll(".song-card");
+songCards.forEach((card) => {
+  const iframe = card.querySelector("iframe");
+  if (!iframe) return;
+
+  const stopVideo = () => {
+    iframe.contentWindow?.postMessage(
+      JSON.stringify({
+        event: "command",
+        func: "stopVideo",
+        args: "",
+      }),
+      "*"
+    );
+  };
+
+  card.addEventListener("mouseleave", stopVideo);
+  card.addEventListener("focusout", stopVideo);
+});

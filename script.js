@@ -1,3 +1,6 @@
+// Allow programmatic focus on step headings for screen reader step announcements
+document.querySelectorAll(".step h1").forEach((h1) => h1.setAttribute("tabindex", "-1"));
+
 // Cat & Moods
 const cat = document.getElementById("cat");
 function setMood(mood) {
@@ -8,7 +11,10 @@ function setMood(mood) {
 // Step Navigation with Custom Moods per Step
 function nextStep(id) {
   document.querySelectorAll(".step").forEach((s) => s.classList.remove("active"));
-  document.getElementById("step" + id).classList.add("active");
+  const step = document.getElementById("step" + id);
+  step.classList.add("active");
+  // Move focus to the new heading so screen readers announce the step change
+  step.querySelector("h1")?.focus();
 
   // Reset transform
   const catSvg = cat.querySelector("svg");
@@ -48,16 +54,16 @@ const noTexts = ["¿No? 😢", "¿Estás segura?", "Por favor 🥺", "¡No lo ha
 function dodgeBtn(e) {
   if (e.type === "touchstart") e.preventDefault();
 
+  const vp = window.visualViewport || window;
+  const vpW = vp.width || window.innerWidth;
+  const vpH = vp.height || window.innerHeight;
   const margin = 20;
-  const maxX = window.innerWidth - noBtn.offsetWidth - margin;
-  const maxY = window.innerHeight - noBtn.offsetHeight - margin;
-
-  const randomX = Math.max(margin, Math.random() * maxX);
-  const randomY = Math.max(margin, Math.random() * maxY);
+  const maxX = vpW - noBtn.offsetWidth - margin;
+  const maxY = vpH - noBtn.offsetHeight - margin;
 
   noBtn.style.position = "fixed";
-  noBtn.style.left = randomX + "px";
-  noBtn.style.top = randomY + "px";
+  noBtn.style.left = Math.max(margin, Math.random() * maxX) + "px";
+  noBtn.style.top  = Math.max(margin, Math.random() * maxY) + "px";
 
   noBtn.innerText = noTexts[noCount % noTexts.length];
   noCount++;
@@ -66,7 +72,9 @@ function dodgeBtn(e) {
   setTimeout(() => setMood(""), 1500);
 }
 
-["mouseover", "touchstart", "click"].forEach((evt) => noBtn.addEventListener(evt, dodgeBtn));
+noBtn.addEventListener("mouseover",  dodgeBtn, { passive: true  });
+noBtn.addEventListener("touchstart", dodgeBtn, { passive: false });
+noBtn.addEventListener("click",      dodgeBtn, { passive: true  });
 
 // Success
 function acceptLove() {
@@ -103,8 +111,12 @@ function createFloatingEmoji(isInstant = false) {
   setTimeout(() => el.remove(), duration * 1000);
 }
 
-setInterval(() => createFloatingEmoji(false), 600);
-for (let i = 0; i < 15; i++) createFloatingEmoji(true);
+// Respect prefers-reduced-motion: skip continuous animations for vestibular sensitivity
+const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+if (!prefersReducedMotion) {
+  setInterval(() => createFloatingEmoji(false), 600);
+  for (let i = 0; i < 15; i++) createFloatingEmoji(true);
+}
 
 // Sparkles
 function startSparkles() {
@@ -122,7 +134,7 @@ function startSparkles() {
   }
 }
 
-// Song gallery: stop YouTube video when leaving the card
+// Song gallery
 const songCards = document.querySelectorAll(".song-card");
 songCards.forEach((card) => {
   const iframe = card.querySelector("iframe");
@@ -130,15 +142,26 @@ songCards.forEach((card) => {
 
   const stopVideo = () => {
     iframe.contentWindow?.postMessage(
-      JSON.stringify({
-        event: "command",
-        func: "stopVideo",
-        args: "",
-      }),
+      JSON.stringify({ event: "command", func: "stopVideo", args: "" }),
       "*"
     );
   };
 
+  // Click/tap toggle — critical for mobile where hover doesn't exist
+  card.addEventListener("click", (e) => {
+    if (e.target.closest(".song-panel")) return; // let video interactions through
+    const opening = !card.classList.contains("expanded");
+    // Collapse all other cards
+    songCards.forEach((c) => {
+      if (c !== card) c.classList.remove("expanded");
+    });
+    card.classList.toggle("expanded", opening);
+    card.setAttribute("aria-expanded", String(opening));
+    if (!opening) stopVideo();
+  });
+
   card.addEventListener("mouseleave", stopVideo);
-  card.addEventListener("focusout", stopVideo);
+  card.addEventListener("focusout", (e) => {
+    if (!card.contains(e.relatedTarget)) stopVideo();
+  });
 });

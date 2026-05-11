@@ -553,6 +553,128 @@ p {
   }
 }
 
+/* ─── Lana Runner Game ─── */
+.game-intro {
+  text-align: center;
+  font-size: clamp(0.85rem, 3vw, 1rem);
+  color: var(--text-color);
+  margin-bottom: 0.75rem;
+  min-height: 0;
+}
+
+.game-container {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  border-radius: 1rem;
+  overflow: hidden;
+  border: 2px solid rgba(255, 141, 163, 0.45);
+  box-shadow: 0 8px 20px rgba(255, 77, 109, 0.15);
+  background: linear-gradient(180deg, #fff5f8 0%, #ffe5ec 100%);
+  margin-bottom: 0.75rem;
+  touch-action: manipulation;
+}
+
+#lanaCanvas {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 600 / 240;
+  cursor: pointer;
+  image-rendering: auto;
+}
+
+.game-hud {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.625rem;
+  left: 0.625rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: "Quicksand", sans-serif;
+  font-weight: 700;
+  font-size: clamp(0.75rem, 2.5vw, 0.95rem);
+  color: var(--primary);
+  pointer-events: none;
+  text-shadow: 0 1px 2px rgba(255, 255, 255, 0.9);
+}
+
+.game-score-label,
+.game-best-label {
+  opacity: 0.75;
+  margin-right: 0.25rem;
+}
+
+.game-score,
+.game-best {
+  font-size: 1.1em;
+  color: var(--primary);
+}
+
+.game-best-label {
+  margin-left: auto;
+}
+
+.game-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(255, 240, 243, 0.92);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1rem;
+  text-align: center;
+  transition: opacity 0.3s ease;
+}
+
+.game-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.game-msg {
+  font-family: "Quicksand", sans-serif;
+  font-size: clamp(0.875rem, 3.5vw, 1.1rem);
+  color: var(--text-color);
+  font-weight: 600;
+  margin: 0;
+  min-height: 0;
+  max-width: 90%;
+}
+
+#lanaStartBtn {
+  min-width: 0;
+}
+
+.game-hint {
+  font-family: "Quicksand", sans-serif;
+  font-size: clamp(0.7rem, 2.5vw, 0.85rem);
+  color: var(--secondary);
+  text-align: center;
+  margin: 0 0 0.75rem 0;
+  min-height: 0;
+  font-weight: 600;
+  opacity: 0.8;
+}
+
+#step10 kbd {
+  font-family: "Quicksand", sans-serif;
+  font-size: 0.85em;
+  padding: 0.1em 0.4em;
+  background: white;
+  border: 1px solid var(--secondary);
+  border-radius: 0.3rem;
+  color: var(--primary);
+  font-weight: 700;
+  box-shadow: 0 1px 0 rgba(255, 141, 163, 0.4);
+}
+
 /* ════════════════════════════════════════
    RESPONSIVE BREAKPOINTS
    Media query breakpoint values must remain in px (spec requirement)
@@ -584,6 +706,7 @@ p {
   .bg-1 { font-size: 6rem; }
   .bg-2 { font-size: 5rem; }
   .bg-3 { font-size: 2.5rem; }
+  .game-hud { font-size: 0.7rem; }
 }
 
 /* ── Landscape phones (short viewport, e.g. iPhone in landscape) ── */
@@ -624,6 +747,8 @@ p {
   .song-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+  .game-intro,
+  .game-hint { display: none; }
 }
 
 /* ── Reduced motion: respect vestibular disorder preferences (WCAG 2.3.3) ── */

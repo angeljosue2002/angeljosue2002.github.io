@@ -245,7 +245,36 @@
           </div>
         </div>
         <div class="btn-group">
+          <button class="btn btn-primary" onclick="nextStep(10)">Jugar con Lana 🐱🎮</button>
           <button class="btn btn-secondary" onclick="nextStep(8)">Volver 💗</button>
+        </div>
+      </div>
+
+      <!-- 🎮 Step 10: Mini-juego Lana -->
+      <div class="step" id="step10">
+        <h1 tabindex="-1">Lana salta 🐱💕</h1>
+        <p class="game-intro">¡Ayuda a Lana a saltar las rosas y los corazones rotos!</p>
+
+        <div class="game-container">
+          <canvas id="lanaCanvas" width="600" height="240" aria-label="Juego de Lana saltando obstáculos"></canvas>
+
+          <div class="game-hud" aria-live="polite">
+            <span class="game-score-label">Puntos:</span>
+            <span id="lanaScore" class="game-score">0</span>
+            <span class="game-best-label">Mejor:</span>
+            <span id="lanaBest" class="game-best">0</span>
+          </div>
+
+          <div class="game-overlay" id="lanaOverlay" role="dialog" aria-labelledby="lanaOverlayMsg">
+            <p id="lanaOverlayMsg" class="game-msg">¡Toca o presiona <kbd>Espacio</kbd> para empezar!</p>
+            <button class="btn btn-primary" id="lanaStartBtn">Jugar 🎮</button>
+          </div>
+        </div>
+
+        <p class="game-hint">Toca la pantalla o pulsa <kbd>Espacio</kbd> / <kbd>↑</kbd> para saltar</p>
+
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(9)">Volver 🎶</button>
         </div>
       </div>
     </div>

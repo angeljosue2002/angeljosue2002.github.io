@@ -192,6 +192,9 @@ songCards.forEach((card) => {
   let lastTs = 0;
   let state = "idle"; // idle | running | gameover
   let cat, obstacles, score, scoreAcc, best, speed, spawnTimer, spawnInterval, sparkles, bobTimer, frameBob;
+  let lastObstacleType = null;
+  // Approx total airtime of a single jump in seconds: 2 * |JUMP_V| / GRAVITY
+  const JUMP_DURATION = (2 * Math.abs(JUMP_V)) / GRAVITY; // ~0.747s
   let resizeObserver = null;
   let listenersBound = false;
 
@@ -208,17 +211,26 @@ songCards.forEach((card) => {
   }
 
   function setupDPR() {
-    if (!canvas) return;
+    if (!canvas || !ctx) return;
     const rect = canvas.getBoundingClientRect();
     const cssW = rect.width || LOGICAL_W;
     const cssH = rect.height || LOGICAL_H;
     const dpr = Math.max(1, window.devicePixelRatio || 1);
-    canvas.width = Math.round(cssW * dpr);
-    canvas.height = Math.round(cssH * dpr);
-    // Scale so we can draw in logical 600x240 coords
-    const sx = (cssW * dpr) / LOGICAL_W;
-    const sy = (cssH * dpr) / LOGICAL_H;
+    const newW = Math.max(1, Math.round(cssW * dpr));
+    const newH = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== newW) canvas.width = newW;
+    if (canvas.height !== newH) canvas.height = newH;
+    // Non-uniform scale: maps the logical 600x240 coord system onto whatever
+    // CSS aspect ratio the canvas was rendered at. All physics/drawing code
+    // continues to read in logical units regardless of device size.
+    const sx = newW / LOGICAL_W;
+    const sy = newH / LOGICAL_H;
     ctx.setTransform(sx, 0, 0, sy, 0, 0);
+    // When resized while idle/gameover, repaint immediately so the cat is
+    // visible at the new size (the rAF loop is only running while playing).
+    if (state !== "running" && cat) {
+      render(0);
+    }
   }
 
   function loadBest() {
@@ -237,6 +249,7 @@ songCards.forEach((card) => {
     sparkles = [];
     bobTimer = 0;
     frameBob = 0;
+    lastObstacleType = null;
     if (!reducedMotion) {
       for (let i = 0; i < 6; i++) {
         sparkles.push({
@@ -423,27 +436,64 @@ songCards.forEach((card) => {
   }
 
   // --- Spawning ---
+  // Minimum horizontal distance (logical units) the player needs between two
+  // hazards so the cat can complete a full jump arc and recover between them.
+  // safetyPad gives extra finger-reaction-time slack on touch input.
+  function minSpawnGap() {
+    const safetyPad = 80;
+    return speed * JUMP_DURATION + safetyPad;
+  }
+
+  // Returns true when there's enough room on the right edge to drop a new
+  // obstacle without trapping the player between two impossible-to-clear ones.
+  function canSpawn() {
+    if (!obstacles.length) return true;
+    let rightmost = -Infinity;
+    for (const o of obstacles) {
+      const rEdge = o.x + o.w;
+      if (rEdge > rightmost) rightmost = rEdge;
+    }
+    return (LOGICAL_W - rightmost) >= minSpawnGap();
+  }
+
   function spawnObstacle() {
-    const r = Math.random();
-    if (r < 0.55) {
-      // Rose
+    // Reroll heart-after-heart so mid-air hearts can never chain into an
+    // unjumpable wall. After a mid-air heart we force a ground obstacle next.
+    let r = Math.random();
+    let pickHeart = r >= 0.55;
+    if (pickHeart && lastObstacleType === "heart-air") {
+      pickHeart = false; // force a ground rose/low-heart after a floater
+    }
+
+    if (!pickHeart) {
+      // Rose — single, ground-level. Doubled-rose removed: it produced
+      // walls that were sometimes wider than a single jump could clear.
       obstacles.push({ type: "rose", x: LOGICAL_W + 10, y: GROUND_Y - 50, w: 26, h: 50 });
-      // Sometimes a doubled rose at higher scores
-      if (score > 250 && Math.random() < 0.25) {
-        obstacles.push({ type: "rose", x: LOGICAL_W + 46, y: GROUND_Y - 50, w: 26, h: 50 });
-      }
+      lastObstacleType = "rose";
+      return;
+    }
+
+    // Heart: choose between a low/ground heart (must jump) and a mid-air
+    // heart (DON'T jump here — walk under it).
+    const floating = Math.random() < 0.45;
+    const w = 22, h = 20;
+    if (floating) {
+      // Raised so the cat at rest (top y = 144) walks safely UNDER it.
+      // Heart occupies y ~ 80..100, well above the cat's standing head.
+      // It only becomes a hazard while the cat is mid-jump.
+      obstacles.push({ type: "heart", x: LOGICAL_W + 10, y: GROUND_Y - 120, w, h });
+      lastObstacleType = "heart-air";
     } else {
-      // Heart — ground or mid-air
-      const floating = Math.random() < 0.45;
-      const w = 22, h = 20;
-      const y = floating ? GROUND_Y - 70 : GROUND_Y - h;
-      obstacles.push({ type: "heart", x: LOGICAL_W + 10, y, w, h });
+      obstacles.push({ type: "heart", x: LOGICAL_W + 10, y: GROUND_Y - h, w, h });
+      lastObstacleType = "heart-ground";
     }
   }
 
   // --- Collision ---
   function collides(c, o) {
-    const pad = 4;
+    // Generous inset gives the player reaction slack — especially for
+    // higher-latency touch input on mobile. 8u on each side ~= 14% of the cat.
+    const pad = 8;
     const ax = c.x + pad, ay = c.y + pad, aw = CAT_W - pad * 2, ah = CAT_H - pad * 2;
     return ax < o.x + o.w && ax + aw > o.x && ay < o.y + o.h && ay + ah > o.y;
   }
@@ -478,19 +528,30 @@ songCards.forEach((card) => {
       frameBob = 0;
     }
 
-    // Speed ramps with score
-    speed = Math.min(520, 240 + Math.floor(score / 100) * 30);
-    spawnInterval = Math.max(0.9, 1.6 - Math.floor(score / 100) * 0.07);
+    // Speed ramps with score — gentler than before so reaction time stays
+    // human-friendly on touch input. Cap at 460 u/s (was 520) and step
+    // +25 every 120 points (was +30 every 100).
+    speed = Math.min(460, 240 + Math.floor(score / 120) * 25);
+    spawnInterval = Math.max(0.95, 1.7 - Math.floor(score / 120) * 0.06);
 
     // Move obstacles
     for (const o of obstacles) o.x -= speed * dt;
     obstacles = obstacles.filter((o) => o.x + o.w > -20);
 
-    // Spawn
+    // Spawn — gated by canSpawn() so we never drop a hazard so close to the
+    // previous one that the player can't physically complete a jump arc
+    // between them. If the gate blocks, we hold spawnTimer at the threshold
+    // and try again next frame.
     spawnTimer += dt;
     if (spawnTimer >= spawnInterval) {
-      spawnTimer = 0;
-      spawnObstacle();
+      if (canSpawn()) {
+        spawnTimer = 0;
+        spawnObstacle();
+      } else {
+        // Keep the timer pinned just past threshold so it re-checks every
+        // frame until the rightmost obstacle clears the safety zone.
+        spawnTimer = spawnInterval;
+      }
     }
 
     // Score (~20/s)

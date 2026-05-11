@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Para mi esposita mandarinita 💖</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -58,7 +58,7 @@
 
       <!-- 📖 Step 1: Saludo -->
       <div class="step active" id="step1">
-        <h1>Hola, Michel Priscila ❤️</h1>
+        <h1 tabindex="-1">Hola, Michel Priscila ❤️</h1>
         <p>Espero que tu día sea tan bonito como tu sonrisa...</p>
         <div class="btn-group">
           <button class="btn btn-primary" onclick="nextStep(2)">¡Ahora lo es! 🥰</button>
@@ -95,7 +95,7 @@
       <!-- 🥰 Step 5: Lo que amo de ti -->
       <div class="step" id="step5">
         <h1>Lo que amo de ti 🎮💕</h1>
-        <p style="text-align: left; font-size: 0.95rem; line-height: 1.7;">
+        <p class="step5-text">
           Me encanta jugar contigo. Cada partida de Roblox a tu lado se convierte en la mejor aventura, y cuando jugamos Genshin Impact juntos siento que estamos en nuestro propio mundo mágico. 🌍✨<br /><br />
           Tú me haces sentir en casa, a gusto, tranquilo... como si nada malo pudiera pasar mientras estemos juntos. No importa si ganamos o perdemos, lo único que importa es que estás ahí conmigo. 🎮💖<br /><br />
           Me encanta tu risa cuando pasa algo chistoso en el juego, me encanta cómo te emocionas, cómo me cuentas cosas... Todo de ti me hace feliz.<br /><br />
@@ -127,30 +127,30 @@
 
       <!-- 🎉 Step 8: ¡Éxito! -->
       <div class="step" id="step8">
-        <h1 style="font-size: 3.5rem">¡¡SÍII!! 🎉🥳</h1>
+        <h1>¡¡SÍII!! 🎉🥳</h1>
         <p>¡No tienes idea de lo feliz que me haces, Michel Priscila!<br />¡Te amo con todo mi ser! ❤️🔥</p>
         <div class="btn-group">
           <button class="btn btn-primary" onclick="nextStep(9)">Galería de canciones 🎶</button>
         </div>
         <div class="photo-grid">
           <div class="photo-item photo-big">
-            <img src="Nosotros.jpeg" alt="Nosotros 💖" />
+            <img src="Nosotros.jpeg" alt="Nosotros 💖" decoding="async" />
             <span class="photo-caption">Nosotros 💖</span>
           </div>
           <div class="photo-item">
-            <img src="momentos.png" alt="Momentos 🌸" />
+            <img src="momentos.png" alt="Momentos 🌸" decoding="async" />
             <span class="photo-caption">Momentos 🌸</span>
           </div>
           <div class="photo-item">
-            <img src="Roblox.jpeg" alt="Roblox 🎮" />
+            <img src="Roblox.jpeg" alt="Roblox 🎮" decoding="async" />
             <span class="photo-caption">Roblox 🎮</span>
           </div>
           <div class="photo-item">
-            <img src="Genshin.png" alt="Genshin ✨" />
+            <img src="Genshin.png" alt="Genshin ✨" decoding="async" />
             <span class="photo-caption">Genshin ✨</span>
           </div>
           <div class="photo-item photo-big">
-            <img src="Genshin2.png" alt="Te amo 💕" />
+            <img src="Genshin2.png" alt="Te amo 💕" decoding="async" />
             <span class="photo-caption">Te amo 💕</span>
           </div>
         </div>
@@ -160,7 +160,7 @@
       <div class="step" id="step9">
         <h1>Galería de canciones 🎶</h1>
         <div class="song-grid">
-          <div class="song-card" tabindex="0">
+          <div class="song-card" role="button" tabindex="0" aria-expanded="false">
             <div class="song-header">
               <h2>Star Collide</h2>
               <span>Whatsaheart</span>
@@ -173,6 +173,7 @@
                   frameborder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowfullscreen
+                  loading="lazy"
                 ></iframe>
               </div>
               <div class="lyrics">
@@ -180,7 +181,7 @@
             </div>
           </div>
 
-          <div class="song-card" tabindex="0">
+          <div class="song-card" role="button" tabindex="0" aria-expanded="false">
             <div class="song-header">
               <h2>For Her</h2>
               <span>Whatsaheart</span>
@@ -193,6 +194,7 @@
                   frameborder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowfullscreen
+                  loading="lazy"
                 ></iframe>
               </div>
               <div class="lyrics">
@@ -200,7 +202,7 @@
             </div>
           </div>
 
-          <div class="song-card" tabindex="0">
+          <div class="song-card" role="button" tabindex="0" aria-expanded="false">
             <div class="song-header">
               <h2>Golden Hour</h2>
               <span>JVKE</span>
@@ -209,10 +211,11 @@
               <div class="video-wrapper">
                 <iframe
                   src="https://www.youtube.com/embed/FGK2KkqaHow?enablejsapi=1&rel=0&playsinline=1"
-                  title="Golden Hour - Cody Fry"
+                  title="Golden Hour - JVKE"
                   frameborder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowfullscreen
+                  loading="lazy"
                 ></iframe>
               </div>
               <div class="lyrics">
@@ -220,7 +223,7 @@
             </div>
           </div>
 
-          <div class="song-card" tabindex="0">
+          <div class="song-card" role="button" tabindex="0" aria-expanded="false">
             <div class="song-header">
               <h2>I Hear a Symphony</h2>
               <span>Cody Fry</span>
@@ -233,6 +236,7 @@
                   frameborder="0"
                   allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                   allowfullscreen
+                  loading="lazy"
                 ></iframe>
               </div>
               <div class="lyrics">

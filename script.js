@@ -43,6 +43,12 @@ function nextStep(id) {
   } else {
     setMood(""); // Default happy/normal
   }
+
+  // Lana game lifecycle
+  if (window.lanaGame) {
+    if (id === 10) window.lanaGame.start();
+    else window.lanaGame.stop();
+  }
 }
 
 // No Button Dodge Logic
@@ -165,3 +171,474 @@ songCards.forEach((card) => {
     if (!card.contains(e.relatedTarget)) stopVideo();
   });
 });
+
+// Lana the Cat — endless runner mini-game (Canvas 2D, vanilla JS)
+(function () {
+  const LOGICAL_W = 600;
+  const LOGICAL_H = 240;
+  const GROUND_Y = 200;
+  const GRAVITY = 1500;
+  const JUMP_V = -560;
+  const CAT_X = 72; // ~12% of 600
+  const CAT_W = 56;
+  const CAT_H = 56;
+  const BEST_KEY = "lanaBestScore";
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // DOM refs — resolved lazily so the module survives if step10 mounts late
+  let canvas, ctx, scoreEl, bestEl, overlay, overlayMsg, startBtn, step10;
+  let rafId = null;
+  let lastTs = 0;
+  let state = "idle"; // idle | running | gameover
+  let cat, obstacles, score, scoreAcc, best, speed, spawnTimer, spawnInterval, sparkles, bobTimer, frameBob;
+  let resizeObserver = null;
+  let listenersBound = false;
+
+  function resolveDom() {
+    canvas = document.getElementById("lanaCanvas");
+    scoreEl = document.getElementById("lanaScore");
+    bestEl = document.getElementById("lanaBest");
+    overlay = document.getElementById("lanaOverlay");
+    overlayMsg = document.getElementById("lanaOverlayMsg");
+    startBtn = document.getElementById("lanaStartBtn");
+    step10 = document.getElementById("step10");
+    if (canvas) ctx = canvas.getContext("2d");
+    return !!(canvas && ctx && overlay && startBtn);
+  }
+
+  function setupDPR() {
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width || LOGICAL_W;
+    const cssH = rect.height || LOGICAL_H;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    // Scale so we can draw in logical 600x240 coords
+    const sx = (cssW * dpr) / LOGICAL_W;
+    const sy = (cssH * dpr) / LOGICAL_H;
+    ctx.setTransform(sx, 0, 0, sy, 0, 0);
+  }
+
+  function loadBest() {
+    const v = parseInt(localStorage.getItem(BEST_KEY) || "0", 10);
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  function resetState() {
+    cat = { x: CAT_X, y: GROUND_Y - CAT_H, vy: 0, onGround: true };
+    obstacles = [];
+    score = 0;
+    scoreAcc = 0;
+    speed = 240;
+    spawnTimer = 0;
+    spawnInterval = 1.6;
+    sparkles = [];
+    bobTimer = 0;
+    frameBob = 0;
+    if (!reducedMotion) {
+      for (let i = 0; i < 6; i++) {
+        sparkles.push({
+          x: Math.random() * LOGICAL_W,
+          y: 20 + Math.random() * 120,
+          s: 0.6 + Math.random() * 1.2,
+          a: 0.15 + Math.random() * 0.25,
+        });
+      }
+    }
+  }
+
+  function updateScoreUI() {
+    if (scoreEl) scoreEl.textContent = String(score);
+    if (bestEl) bestEl.textContent = String(best);
+  }
+
+  // --- Drawing helpers ---
+  function drawBackground(dt) {
+    // Subtle pink gradient (transparent-ish so the CSS bg shows through)
+    const g = ctx.createLinearGradient(0, 0, 0, LOGICAL_H);
+    g.addColorStop(0, "rgba(255, 245, 248, 0.6)");
+    g.addColorStop(1, "rgba(255, 229, 236, 0.6)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+    // Drifting sparkles
+    if (!reducedMotion && state !== "gameover") {
+      for (const sp of sparkles) {
+        sp.x -= (speed * 0.15) * dt;
+        if (sp.x < -10) {
+          sp.x = LOGICAL_W + 10;
+          sp.y = 20 + Math.random() * 120;
+        }
+      }
+    }
+    for (const sp of sparkles) {
+      ctx.globalAlpha = sp.a;
+      ctx.fillStyle = "#ff8fa3";
+      ctx.beginPath();
+      ctx.arc(sp.x, sp.y, sp.s, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // Ground line
+    ctx.fillStyle = "#ff8fa3";
+    ctx.fillRect(0, GROUND_Y, LOGICAL_W, 4);
+  }
+
+  function drawCat(c) {
+    const cx = c.x + CAT_W / 2;
+    const cy = c.y + CAT_H / 2 + frameBob;
+
+    // Body — white ellipse
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#ffaec9";
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 8, 22, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Tail
+    ctx.beginPath();
+    ctx.moveTo(cx - 18, cy + 6);
+    ctx.quadraticCurveTo(cx - 32, cy - 4, cx - 26, cy - 14);
+    ctx.lineWidth = 5;
+    ctx.strokeStyle = "#ffffff";
+    ctx.stroke();
+    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = "#ffaec9";
+
+    // Head
+    ctx.beginPath();
+    ctx.arc(cx + 6, cy - 8, 14, 0, Math.PI * 2);
+    ctx.fillStyle = "#ffffff";
+    ctx.fill();
+    ctx.stroke();
+
+    // Ears (triangles) with pink inner
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    ctx.moveTo(cx - 4, cy - 18);
+    ctx.lineTo(cx - 1, cy - 28);
+    ctx.lineTo(cx + 4, cy - 19);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 10, cy - 19);
+    ctx.lineTo(cx + 14, cy - 28);
+    ctx.lineTo(cx + 18, cy - 18);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Inner pink
+    ctx.fillStyle = "#ffccd5";
+    ctx.beginPath();
+    ctx.moveTo(cx - 3, cy - 20);
+    ctx.lineTo(cx - 1, cy - 25);
+    ctx.lineTo(cx + 2, cy - 20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(cx + 11, cy - 20);
+    ctx.lineTo(cx + 14, cy - 25);
+    ctx.lineTo(cx + 17, cy - 20);
+    ctx.closePath();
+    ctx.fill();
+
+    // Cheeks
+    ctx.fillStyle = "#ffaec9";
+    ctx.beginPath();
+    ctx.arc(cx, cy - 5, 1.8, 0, Math.PI * 2);
+    ctx.arc(cx + 13, cy - 5, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Eyes
+    ctx.fillStyle = "#222";
+    ctx.beginPath();
+    ctx.arc(cx + 2, cy - 9, 1.4, 0, Math.PI * 2);
+    ctx.arc(cx + 11, cy - 9, 1.4, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Mouth
+    ctx.strokeStyle = "#a33";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(cx + 6, cy - 3, 2, 0, Math.PI);
+    ctx.stroke();
+  }
+
+  function drawRose(o) {
+    const x = o.x;
+    const y = o.y;
+    // Stem
+    ctx.strokeStyle = "#3aa55c";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x + o.w / 2, y + o.h);
+    ctx.lineTo(x + o.w / 2, y + 18);
+    ctx.stroke();
+    // Leaf
+    ctx.fillStyle = "#3aa55c";
+    ctx.beginPath();
+    ctx.ellipse(x + o.w / 2 - 6, y + o.h - 14, 5, 2.5, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    // Petals
+    ctx.fillStyle = "#ff8fa3";
+    ctx.beginPath();
+    ctx.arc(x + o.w / 2 - 5, y + 12, 6, 0, Math.PI * 2);
+    ctx.arc(x + o.w / 2 + 5, y + 12, 6, 0, Math.PI * 2);
+    ctx.arc(x + o.w / 2, y + 7, 6, 0, Math.PI * 2);
+    ctx.fill();
+    // Center
+    ctx.fillStyle = "#ff4d6d";
+    ctx.beginPath();
+    ctx.arc(x + o.w / 2, y + 12, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawHeart(o) {
+    const x = o.x;
+    const y = o.y;
+    const s = o.w / 22; // scale
+    ctx.fillStyle = "#ff4d6d";
+    ctx.beginPath();
+    ctx.moveTo(x + 11 * s, y + 6 * s);
+    ctx.bezierCurveTo(x + 11 * s, y + 2 * s, x + 4 * s, y, x + 4 * s, y + 7 * s);
+    ctx.bezierCurveTo(x + 4 * s, y + 12 * s, x + 11 * s, y + 17 * s, x + 11 * s, y + 18 * s);
+    ctx.bezierCurveTo(x + 11 * s, y + 17 * s, x + 18 * s, y + 12 * s, x + 18 * s, y + 7 * s);
+    ctx.bezierCurveTo(x + 18 * s, y, x + 11 * s, y + 2 * s, x + 11 * s, y + 6 * s);
+    ctx.fill();
+    // Crack (broken)
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x + 11 * s, y + 3 * s);
+    ctx.lineTo(x + 9 * s, y + 7 * s);
+    ctx.lineTo(x + 13 * s, y + 10 * s);
+    ctx.lineTo(x + 10 * s, y + 14 * s);
+    ctx.stroke();
+  }
+
+  // --- Spawning ---
+  function spawnObstacle() {
+    const r = Math.random();
+    if (r < 0.55) {
+      // Rose
+      obstacles.push({ type: "rose", x: LOGICAL_W + 10, y: GROUND_Y - 50, w: 26, h: 50 });
+      // Sometimes a doubled rose at higher scores
+      if (score > 250 && Math.random() < 0.25) {
+        obstacles.push({ type: "rose", x: LOGICAL_W + 46, y: GROUND_Y - 50, w: 26, h: 50 });
+      }
+    } else {
+      // Heart — ground or mid-air
+      const floating = Math.random() < 0.45;
+      const w = 22, h = 20;
+      const y = floating ? GROUND_Y - 70 : GROUND_Y - h;
+      obstacles.push({ type: "heart", x: LOGICAL_W + 10, y, w, h });
+    }
+  }
+
+  // --- Collision ---
+  function collides(c, o) {
+    const pad = 4;
+    const ax = c.x + pad, ay = c.y + pad, aw = CAT_W - pad * 2, ah = CAT_H - pad * 2;
+    return ax < o.x + o.w && ax + aw > o.x && ay < o.y + o.h && ay + ah > o.y;
+  }
+
+  // --- Main loop ---
+  function tick(ts) {
+    if (state !== "running") return;
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000;
+    if (dt > 0.05) dt = 0.05; // cap
+    lastTs = ts;
+
+    // Physics
+    cat.vy += GRAVITY * dt;
+    cat.y += cat.vy * dt;
+    if (cat.y >= GROUND_Y - CAT_H) {
+      cat.y = GROUND_Y - CAT_H;
+      cat.vy = 0;
+      cat.onGround = true;
+    } else {
+      cat.onGround = false;
+    }
+
+    // Run-cycle bob
+    if (cat.onGround && !reducedMotion) {
+      bobTimer += dt;
+      if (bobTimer >= 0.15) {
+        bobTimer = 0;
+        frameBob = frameBob === 0 ? -2 : 0;
+      }
+    } else {
+      frameBob = 0;
+    }
+
+    // Speed ramps with score
+    speed = Math.min(520, 240 + Math.floor(score / 100) * 30);
+    spawnInterval = Math.max(0.9, 1.6 - Math.floor(score / 100) * 0.07);
+
+    // Move obstacles
+    for (const o of obstacles) o.x -= speed * dt;
+    obstacles = obstacles.filter((o) => o.x + o.w > -20);
+
+    // Spawn
+    spawnTimer += dt;
+    if (spawnTimer >= spawnInterval) {
+      spawnTimer = 0;
+      spawnObstacle();
+    }
+
+    // Score (~20/s)
+    scoreAcc += dt * 1000;
+    while (scoreAcc >= 50) {
+      scoreAcc -= 50;
+      score += 1;
+    }
+    updateScoreUI();
+
+    // Collisions
+    for (const o of obstacles) {
+      if (collides(cat, o)) {
+        gameOver();
+        break;
+      }
+    }
+
+    // Draw
+    render(dt);
+
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function render(dt) {
+    ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    drawBackground(dt);
+    for (const o of obstacles) {
+      if (o.type === "rose") drawRose(o);
+      else drawHeart(o);
+    }
+    drawCat(cat);
+  }
+
+  function jump() {
+    if (state === "idle") {
+      beginRun();
+      return;
+    }
+    if (state !== "running") return;
+    if (cat.onGround) {
+      cat.vy = JUMP_V;
+      cat.onGround = false;
+    }
+  }
+
+  function beginRun() {
+    resetState();
+    state = "running";
+    lastTs = 0;
+    if (overlay) overlay.classList.add("hidden");
+    updateScoreUI();
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function gameOver() {
+    state = "gameover";
+    cancelAnimationFrame(rafId);
+    rafId = null;
+    const newRecord = score > best;
+    if (newRecord) {
+      best = score;
+      try { localStorage.setItem(BEST_KEY, String(best)); } catch (_) {}
+    }
+    updateScoreUI();
+    if (overlayMsg) {
+      const head = newRecord ? "💕 ¡Récord! 🎉" : "💔 ¡Lana tropezó!";
+      overlayMsg.innerHTML = `${head}<br><small>Puntos: ${score} · Mejor: ${best}</small>`;
+    }
+    if (startBtn) startBtn.textContent = "Otra vez 🔁";
+    if (overlay) overlay.classList.remove("hidden");
+  }
+
+  // --- Input ---
+  function onKey(e) {
+    if (!step10 || !step10.classList.contains("active")) return;
+    if (e.code === "Space" || e.code === "ArrowUp") {
+      e.preventDefault();
+      jump();
+    }
+  }
+  function onCanvasPointer(e) {
+    if (e.cancelable) e.preventDefault();
+    jump();
+  }
+  function onStartClick() {
+    beginRun();
+  }
+
+  function bindListeners() {
+    if (listenersBound || !canvas) return;
+    window.addEventListener("keydown", onKey);
+    canvas.addEventListener("mousedown", onCanvasPointer);
+    canvas.addEventListener("touchstart", onCanvasPointer, { passive: false });
+    startBtn.addEventListener("click", onStartClick);
+    listenersBound = true;
+  }
+  function unbindListeners() {
+    if (!listenersBound) return;
+    window.removeEventListener("keydown", onKey);
+    canvas?.removeEventListener("mousedown", onCanvasPointer);
+    canvas?.removeEventListener("touchstart", onCanvasPointer);
+    startBtn?.removeEventListener("click", onStartClick);
+    listenersBound = false;
+  }
+
+  // --- Public API ---
+  function start() {
+    if (!resolveDom()) return; // step 10 DOM not present yet
+    setupDPR();
+    if (!resizeObserver && "ResizeObserver" in window) {
+      resizeObserver = new ResizeObserver(() => setupDPR());
+      resizeObserver.observe(canvas);
+    }
+    best = loadBest();
+    resetState();
+    state = "idle";
+    bindListeners();
+    if (overlayMsg) overlayMsg.innerHTML = "Ayuda a Lana a esquivar las rosas espinosas 🌹 y los corazones rotos 💔";
+    if (startBtn) startBtn.textContent = "Jugar 🎮";
+    if (overlay) overlay.classList.remove("hidden");
+    updateScoreUI();
+    // Render once so the idle frame shows the cat & ground
+    render(0);
+  }
+
+  function stop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    state = "idle";
+    unbindListeners();
+    if (resizeObserver) {
+      try { resizeObserver.disconnect(); } catch (_) {}
+      resizeObserver = null;
+    }
+  }
+
+  function reset() {
+    stop();
+    start();
+  }
+
+  window.lanaGame = { start, stop, reset };
+
+  // If step 10 is already active at load (rare), boot immediately
+  document.addEventListener("DOMContentLoaded", () => {
+    const s10 = document.getElementById("step10");
+    if (s10 && s10.classList.contains("active")) start();
+  });
+})();

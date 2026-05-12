@@ -130,7 +130,8 @@
         <h1>¡¡SÍII!! 🎉🥳</h1>
         <p>¡No tienes idea de lo feliz que me haces, Michel Priscila!<br />¡Te amo con todo mi ser! ❤️🔥</p>
         <div class="btn-group">
-          <button class="btn btn-primary" onclick="nextStep(9)">Galería de canciones 🎶</button>
+          <button class="btn btn-primary" onclick="nextStep(9)">Canciones 🎶</button>
+          <button class="btn btn-primary" onclick="nextStep(11)">Más sorpresas 💝</button>
         </div>
         <div class="photo-grid">
           <div class="photo-item photo-big">
@@ -274,8 +275,210 @@
         <p class="game-hint">Toca la pantalla o pulsa <kbd>Espacio</kbd> / <kbd>↑</kbd> para saltar</p>
 
         <div class="btn-group">
+          <button class="btn btn-primary" onclick="nextStep(11)">Más sorpresas 💝</button>
           <button class="btn btn-secondary" onclick="nextStep(9)">Volver 🎶</button>
         </div>
+      </div>
+
+      <!-- 💝 Step 11: Hub de extras -->
+      <div class="step" id="step11">
+        <h1 tabindex="-1">Más sorpresas 💝</h1>
+        <p class="extras-intro">Toca cualquier carita para descubrir algo nuevo:</p>
+
+        <div class="extras-grid">
+          <button class="extras-tile" onclick="nextStep(12)" type="button">
+            <span class="extras-tile-icon">🧠</span>
+            <span class="extras-tile-label">Memory Match</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(13)" type="button">
+            <span class="extras-tile-icon">💕</span>
+            <span class="extras-tile-label">Atrapa corazones</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(14)" type="button">
+            <span class="extras-tile-icon">🫧</span>
+            <span class="extras-tile-label">Bubble Pop</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(15)" type="button">
+            <span class="extras-tile-icon">🍰</span>
+            <span class="extras-tile-label">Alimenta a Lana</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(16)" type="button">
+            <span class="extras-tile-icon">📜</span>
+            <span class="extras-tile-label">Mensaje del día</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(17)" type="button">
+            <span class="extras-tile-icon">💖</span>
+            <span class="extras-tile-label">Razón al azar</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(18)" type="button">
+            <span class="extras-tile-icon">✉️</span>
+            <span class="extras-tile-label">Carta para ti</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(19)" type="button">
+            <span class="extras-tile-icon">🗺️</span>
+            <span class="extras-tile-label">Aventura</span>
+          </button>
+          <button class="extras-tile" onclick="nextStep(20)" type="button">
+            <span class="extras-tile-icon">📅</span>
+            <span class="extras-tile-label">Fechas</span>
+          </button>
+          <button class="extras-tile" id="openSettings" type="button">
+            <span class="extras-tile-icon">⚙️</span>
+            <span class="extras-tile-label">Personaliza</span>
+          </button>
+        </div>
+
+        <div class="extras-actions">
+          <button class="btn btn-secondary" id="shareBtn" type="button">Compartir 🔗</button>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(8)">Volver 💗</button>
+        </div>
+      </div>
+
+      <!-- 🧠 Step 12: Memory Match -->
+      <div class="step" id="step12">
+        <h1 tabindex="-1">Memory Match 🧠</h1>
+        <p class="step-intro">Encuentra los pares de nuestras fotos.</p>
+        <div id="memoryGrid" class="memory-grid-container"></div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- 💕 Step 13: Atrapa Corazones -->
+      <div class="step" id="step13">
+        <h1 tabindex="-1">Atrapa corazones 💕</h1>
+        <p class="step-intro">Atrapa los 💕 y esquiva los 💔</p>
+        <div class="game-container">
+          <canvas id="catchCanvas" width="600" height="400" aria-label="Atrapa corazones"></canvas>
+          <div class="game-hud">
+            <span>Puntos: <span id="catchScore">0</span></span>
+            <span style="margin-left:auto;">Vidas: <span id="catchLives">3</span></span>
+          </div>
+          <div class="game-overlay" id="catchOverlay" role="dialog">
+            <p class="game-msg" id="catchOverlayMsg">¡Toca para empezar!</p>
+            <button class="btn btn-primary" id="catchStartBtn">Jugar 🎮</button>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- 🫧 Step 14: Bubble Pop -->
+      <div class="step" id="step14">
+        <h1 tabindex="-1">Bubble Pop 🫧</h1>
+        <p class="step-intro">Pincha las burbujas con corazones.</p>
+        <div class="game-container">
+          <canvas id="bubbleCanvas" width="600" height="400" aria-label="Bubble pop"></canvas>
+          <div class="game-hud">
+            <span>Puntos: <span id="bubbleScore">0</span></span>
+            <span style="margin-left:auto;">Tiempo: <span id="bubbleTime">30</span>s</span>
+          </div>
+          <div class="game-overlay" id="bubbleOverlay" role="dialog">
+            <p class="game-msg" id="bubbleOverlayMsg">¡Toca para empezar!</p>
+            <button class="btn btn-primary" id="bubbleStartBtn">Jugar 🎮</button>
+          </div>
+        </div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- 🍰 Step 15: Alimenta a Lana -->
+      <div class="step" id="step15">
+        <h1 tabindex="-1">Alimenta a Lana 🍰</h1>
+        <p class="step-intro">Dale comida a Lana para que sea feliz.</p>
+        <div id="feedContainer" class="feed-container"></div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- 📜 Step 16: Mensaje del día -->
+      <div class="step" id="step16">
+        <h1 tabindex="-1">Mensaje del día 📜</h1>
+        <p class="step-intro" id="dailyDate">Hoy</p>
+        <div id="dailyMsg" class="daily-msg-box"></div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- 💖 Step 17: Razón al azar -->
+      <div class="step" id="step17">
+        <h1 tabindex="-1">Razón al azar 💖</h1>
+        <p class="step-intro">Una razón nueva cada vez:</p>
+        <div id="reasonText" class="reason-text">Toca el botón.</div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="reasonBtn" type="button">Dame una razón 💕</button>
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- ✉️ Step 18: Carta tipeada -->
+      <div class="step" id="step18">
+        <h1 tabindex="-1">Carta para ti ✉️</h1>
+        <div id="letterContainer" class="letter-container"></div>
+        <div class="btn-group">
+          <button class="btn btn-primary" id="letterReplayBtn" type="button">Repetir ✨</button>
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- 🗺️ Step 19: Aventura -->
+      <div class="step" id="step19">
+        <h1 tabindex="-1">Nuestra aventura 🗺️</h1>
+        <div id="adventureContainer" class="adventure-container"></div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" id="adventureRestartBtn" type="button">Reiniciar 🔁</button>
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+
+      <!-- 📅 Step 20: Fechas (widgets temporales) -->
+      <div class="step" id="step20">
+        <h1 tabindex="-1">Nuestras fechas 📅</h1>
+        <p class="step-intro">Tiempo y momentos importantes:</p>
+        <div id="timeTogetherBox" class="widget-box widget-time"></div>
+        <div id="countdownBox" class="widget-box widget-countdown"></div>
+        <div id="calendarBox" class="widget-box widget-calendar"></div>
+        <div class="btn-group">
+          <button class="btn btn-secondary" onclick="nextStep(11)">Volver 💝</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ⚙️ Settings modal -->
+    <div class="settings-modal" id="settingsModal" aria-hidden="true" role="dialog" aria-labelledby="settingsTitle">
+      <div class="settings-backdrop" id="settingsBackdrop"></div>
+      <div class="settings-card" role="document">
+        <button class="settings-close" id="closeSettings" type="button" aria-label="Cerrar">✕</button>
+        <h2 id="settingsTitle" class="settings-title">Personaliza 💝</h2>
+
+        <label class="settings-row">
+          <span>🌙 Modo oscuro</span>
+          <input type="checkbox" id="toggleDarkMode" />
+        </label>
+        <label class="settings-row">
+          <span>🎵 Música de fondo</span>
+          <input type="checkbox" id="toggleMusic" />
+        </label>
+        <label class="settings-row">
+          <span>💖 Cursor de corazón</span>
+          <input type="checkbox" id="toggleCursor" />
+        </label>
+        <label class="settings-row">
+          <span>👗 Outfit de Lana</span>
+          <select id="selectOutfit">
+            <option value="default">Clásica</option>
+            <option value="crown">Corona 👑</option>
+            <option value="glasses">Lentes 😎</option>
+            <option value="party">Fiesta 🥳</option>
+          </select>
+        </label>
       </div>
     </div>
 

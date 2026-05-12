@@ -40,6 +40,10 @@ function nextStep(id) {
   } else if (id === 9) {
     setMood("love");
     catSvg.style.transform = "none";
+  } else if (id === 11) {
+    setMood("love"); // hub: hearty cat
+  } else if (id >= 12 && id <= 20) {
+    setMood("cute"); // extras: cute by default
   } else {
     setMood(""); // Default happy/normal
   }
@@ -49,6 +53,18 @@ function nextStep(id) {
     if (id === 10) window.lanaGame.start();
     else window.lanaGame.stop();
   }
+
+  // Mini-games lifecycle
+  if (window.memoryGame) { id === 12 ? window.memoryGame.start() : window.memoryGame.stop(); }
+  if (window.catchGame)  { id === 13 ? window.catchGame.start()  : window.catchGame.stop(); }
+  if (window.bubbleGame) { id === 14 ? window.bubbleGame.start() : window.bubbleGame.stop(); }
+  if (window.feedGame)   { id === 15 ? window.feedGame.start()   : window.feedGame.stop(); }
+
+  // Content lifecycle
+  if (window.dailyMessage) { id === 16 ? window.dailyMessage.start() : window.dailyMessage.stop(); }
+  if (window.randomReason) { id === 17 ? window.randomReason.start() : window.randomReason.stop(); }
+  if (window.letterTyper)  { id === 18 ? window.letterTyper.start()  : window.letterTyper.stop();  }
+  if (window.adventure)    { id === 19 ? window.adventure.start()    : window.adventure.stop();    }
 }
 
 // No Button Dodge Logic
@@ -702,4 +718,1885 @@ songCards.forEach((card) => {
     const s10 = document.getElementById("step10");
     if (s10 && s10.classList.contains("active")) start();
   });
+})();
+
+// ─── Settings Modal & Share Button ───
+(function() {
+  const modal = document.getElementById("settingsModal");
+  const openBtn = document.getElementById("openSettings");
+  const closeBtn = document.getElementById("closeSettings");
+  const backdrop = document.getElementById("settingsBackdrop");
+  const shareBtn = document.getElementById("shareBtn");
+
+  function openModal() {
+    if (!modal) return;
+    modal.classList.add("open");
+    modal.setAttribute("aria-hidden", "false");
+  }
+  function closeModal() {
+    if (!modal) return;
+    modal.classList.remove("open");
+    modal.setAttribute("aria-hidden", "true");
+  }
+
+  openBtn?.addEventListener("click", openModal);
+  closeBtn?.addEventListener("click", closeModal);
+  backdrop?.addEventListener("click", closeModal);
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && modal?.classList.contains("open")) closeModal();
+  });
+
+  shareBtn?.addEventListener("click", async () => {
+    const shareData = {
+      title: "Para mi mandarinita 💖",
+      text: "Una sorpresa hecha con amor",
+      url: location.href
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(location.href);
+        const orig = shareBtn.textContent;
+        shareBtn.textContent = "¡Copiado! 📋";
+        setTimeout(() => (shareBtn.textContent = orig), 1500);
+      }
+    } catch (_) { /* user cancelled */ }
+  });
+})();
+
+// ════════════════════════════════════════════════════════
+// MINI-GAMES (steps 12–15)
+// Each game is its own IIFE exposing window.<name>.{start, stop}
+// ════════════════════════════════════════════════════════
+
+const _gamesReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ─── Game 1: Memory Match (step 12) ───────────────────────
+(function () {
+  const PAIRS = ["💖", "🌹", "🐱", "🎮", "✨", "🍰"];
+  let grid, statusEl, step12;
+  let cards = [];      // {el, value, flipped, matched}
+  let first = null, second = null;
+  let lock = false;
+  let moves = 0;
+  let matchedCount = 0;
+  let mounted = false;
+
+  function resolveDom() {
+    grid = document.getElementById("memoryGrid");
+    step12 = document.getElementById("step12");
+    if (!grid) return false;
+    // status line lives just below the grid; create lazily once
+    statusEl = step12.querySelector(".memory-status");
+    if (!statusEl) {
+      statusEl = document.createElement("p");
+      statusEl.className = "memory-status";
+      grid.insertAdjacentElement("afterend", statusEl);
+    }
+    return true;
+  }
+
+  function shuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function updateStatus() {
+    if (!statusEl) return;
+    if (matchedCount === PAIRS.length) {
+      statusEl.innerHTML = `<span class="memory-win">¡Lo lograste! 🎉 con ${moves} movimientos</span><button type="button" class="memory-restart">Otra vez 🔁</button>`;
+      statusEl.querySelector(".memory-restart")?.addEventListener("click", build);
+    } else {
+      statusEl.textContent = `Movimientos: ${moves}`;
+    }
+  }
+
+  function onCardClick(card) {
+    if (lock || card.flipped || card.matched) return;
+    card.flipped = true;
+    card.el.classList.add("flipped");
+    if (!first) {
+      first = card;
+      return;
+    }
+    second = card;
+    moves++;
+    updateStatus();
+    if (first.value === second.value) {
+      first.matched = second.matched = true;
+      first.el.classList.add("matched");
+      second.el.classList.add("matched");
+      matchedCount++;
+      first = second = null;
+      updateStatus();
+    } else {
+      lock = true;
+      const a = first, b = second;
+      first = second = null;
+      setTimeout(() => {
+        a.flipped = b.flipped = false;
+        a.el.classList.remove("flipped");
+        b.el.classList.remove("flipped");
+        lock = false;
+      }, 800);
+    }
+  }
+
+  function build() {
+    if (!resolveDom()) return;
+    grid.innerHTML = "";
+    cards = [];
+    first = second = null;
+    lock = false;
+    moves = 0;
+    matchedCount = 0;
+    const deck = shuffle([...PAIRS, ...PAIRS]);
+    for (const value of deck) {
+      const el = document.createElement("button");
+      el.type = "button";
+      el.className = "memory-card";
+      el.setAttribute("aria-label", "Carta de memoria");
+      el.innerHTML = `<span class="memory-face memory-back">?</span><span class="memory-face memory-front">${value}</span>`;
+      const card = { el, value, flipped: false, matched: false };
+      el.addEventListener("click", () => onCardClick(card));
+      grid.appendChild(el);
+      cards.push(card);
+    }
+    updateStatus();
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    build();
+    mounted = true;
+  }
+  function stop() {
+    // Nothing continuous to clean up; reset on next entry.
+    mounted = false;
+  }
+
+  window.memoryGame = { start, stop };
+})();
+
+// ─── Game 2: Atrapa Corazones (step 13) ───────────────────
+(function () {
+  const LOGICAL_W = 600;
+  const LOGICAL_H = 400;
+  const BEST_KEY = "catchBestScore";
+
+  let canvas, ctx, scoreEl, livesEl, overlay, overlayMsg, startBtn, step13;
+  let rafId = null, lastTs = 0;
+  let state = "idle"; // idle | running | gameover
+  let basketX = 300, items = [], score = 0, lives = 3, spawnTimer = 0, spawnInterval = 0.9, speedMul = 1, best = 0;
+  let listenersBound = false, resizeObserver = null;
+
+  function resolveDom() {
+    canvas = document.getElementById("catchCanvas");
+    scoreEl = document.getElementById("catchScore");
+    livesEl = document.getElementById("catchLives");
+    overlay = document.getElementById("catchOverlay");
+    overlayMsg = document.getElementById("catchOverlayMsg");
+    startBtn = document.getElementById("catchStartBtn");
+    step13 = document.getElementById("step13");
+    if (canvas) ctx = canvas.getContext("2d");
+    return !!(canvas && ctx && overlay && startBtn);
+  }
+
+  function setupDPR() {
+    if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width || LOGICAL_W;
+    const cssH = rect.height || LOGICAL_H;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const newW = Math.max(1, Math.round(cssW * dpr));
+    const newH = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== newW) canvas.width = newW;
+    if (canvas.height !== newH) canvas.height = newH;
+    ctx.setTransform(newW / LOGICAL_W, 0, 0, newH / LOGICAL_H, 0, 0);
+    if (state !== "running") render();
+  }
+
+  function loadBest() {
+    const v = parseInt(localStorage.getItem(BEST_KEY) || "0", 10);
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  function resetState() {
+    basketX = LOGICAL_W / 2;
+    items = [];
+    score = 0;
+    lives = 3;
+    spawnTimer = 0;
+    spawnInterval = 0.9;
+    speedMul = 1;
+  }
+
+  function updateHUD() {
+    if (scoreEl) scoreEl.textContent = String(score);
+    if (livesEl) livesEl.textContent = String(lives);
+  }
+
+  function spawnItem() {
+    const isGood = Math.random() < 0.78;
+    items.push({
+      x: 30 + Math.random() * (LOGICAL_W - 60),
+      y: -30,
+      vy: (140 + Math.random() * 90) * speedMul,
+      type: isGood ? "heart" : "broken",
+      size: 28,
+      rot: (Math.random() - 0.5) * 0.5,
+    });
+  }
+
+  function drawBasket() {
+    const w = 96, h = 38;
+    const x = basketX - w / 2;
+    const y = LOGICAL_H - h - 10;
+    // Body
+    ctx.fillStyle = "#ff4d6d";
+    ctx.beginPath();
+    ctx.moveTo(x, y + 4);
+    ctx.lineTo(x + w, y + 4);
+    ctx.lineTo(x + w - 8, y + h);
+    ctx.lineTo(x + 8, y + h);
+    ctx.closePath();
+    ctx.fill();
+    // Rim
+    ctx.fillStyle = "#ff8fa3";
+    ctx.fillRect(x - 4, y, w + 8, 8);
+    // Weave lines
+    ctx.strokeStyle = "rgba(255,255,255,0.35)";
+    ctx.lineWidth = 1.2;
+    for (let i = 1; i < 5; i++) {
+      const lx = x + (w * i) / 5;
+      ctx.beginPath();
+      ctx.moveTo(lx, y + 4);
+      ctx.lineTo(lx - 3, y + h);
+      ctx.stroke();
+    }
+  }
+
+  function drawItem(o) {
+    ctx.save();
+    ctx.translate(o.x, o.y);
+    ctx.rotate(o.rot);
+    ctx.font = `${o.size}px serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(o.type === "heart" ? "💕" : "💔", 0, 0);
+    ctx.restore();
+  }
+
+  function render() {
+    if (!ctx) return;
+    // Background
+    ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    const g = ctx.createLinearGradient(0, 0, 0, LOGICAL_H);
+    g.addColorStop(0, "rgba(255, 245, 248, 0.5)");
+    g.addColorStop(1, "rgba(255, 229, 236, 0.5)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    for (const o of items) drawItem(o);
+    drawBasket();
+  }
+
+  function tick(ts) {
+    if (state !== "running") return;
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000;
+    if (dt > 0.05) dt = 0.05;
+    lastTs = ts;
+
+    speedMul = Math.min(2.2, 1 + score * 0.02);
+    spawnInterval = Math.max(0.45, 0.95 - score * 0.015);
+
+    spawnTimer += dt;
+    if (spawnTimer >= spawnInterval) {
+      spawnTimer = 0;
+      spawnItem();
+    }
+
+    for (const o of items) {
+      o.y += o.vy * dt;
+      o.rot += dt * 0.6;
+    }
+    // Catch/miss
+    const basketTop = LOGICAL_H - 48 - 10;
+    const basketHalf = 48;
+    for (let i = items.length - 1; i >= 0; i--) {
+      const o = items[i];
+      if (o.y >= basketTop && o.y <= basketTop + 38 && Math.abs(o.x - basketX) < basketHalf) {
+        if (o.type === "heart") score += 1;
+        else { lives -= 1; if (lives <= 0) { gameOver(); return; } }
+        items.splice(i, 1);
+      } else if (o.y > LOGICAL_H + 40) {
+        // Off the bottom: missed hearts don't penalize, broken ones go free
+        items.splice(i, 1);
+      }
+    }
+
+    updateHUD();
+    render();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function begin() {
+    resetState();
+    state = "running";
+    lastTs = 0;
+    if (overlay) overlay.classList.add("hidden");
+    updateHUD();
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function gameOver() {
+    state = "gameover";
+    cancelAnimationFrame(rafId);
+    rafId = null;
+    const newRecord = score > best;
+    if (newRecord) {
+      best = score;
+      try { localStorage.setItem(BEST_KEY, String(best)); } catch (_) {}
+    }
+    if (overlayMsg) {
+      const head = newRecord ? "¡Récord! 🎉" : "💔 ¡Se acabó!";
+      overlayMsg.innerHTML = `${head}<br><small>Puntos: ${score} · Mejor: ${best}</small>`;
+    }
+    if (startBtn) startBtn.textContent = "Otra vez 🔁";
+    if (overlay) overlay.classList.remove("hidden");
+  }
+
+  function pointerToLogicalX(clientX) {
+    const rect = canvas.getBoundingClientRect();
+    const ratio = (clientX - rect.left) / rect.width;
+    return Math.max(40, Math.min(LOGICAL_W - 40, ratio * LOGICAL_W));
+  }
+
+  function onMove(e) {
+    if (state !== "running") return;
+    if (e.touches && e.touches[0]) {
+      if (e.cancelable) e.preventDefault();
+      basketX = pointerToLogicalX(e.touches[0].clientX);
+    } else {
+      basketX = pointerToLogicalX(e.clientX);
+    }
+  }
+  function onKey(e) {
+    if (!step13 || !step13.classList.contains("active")) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (state !== "running") begin();
+    } else if (state === "running") {
+      if (e.code === "ArrowLeft") basketX = Math.max(40, basketX - 30);
+      else if (e.code === "ArrowRight") basketX = Math.min(LOGICAL_W - 40, basketX + 30);
+    }
+  }
+  function onStart() { begin(); }
+
+  function bindListeners() {
+    if (listenersBound || !canvas) return;
+    canvas.addEventListener("mousemove", onMove);
+    canvas.addEventListener("touchmove", onMove, { passive: false });
+    canvas.addEventListener("touchstart", onMove, { passive: false });
+    window.addEventListener("keydown", onKey);
+    startBtn.addEventListener("click", onStart);
+    listenersBound = true;
+  }
+  function unbindListeners() {
+    if (!listenersBound) return;
+    canvas?.removeEventListener("mousemove", onMove);
+    canvas?.removeEventListener("touchmove", onMove);
+    canvas?.removeEventListener("touchstart", onMove);
+    window.removeEventListener("keydown", onKey);
+    startBtn?.removeEventListener("click", onStart);
+    listenersBound = false;
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    setupDPR();
+    if (!resizeObserver && "ResizeObserver" in window) {
+      resizeObserver = new ResizeObserver(() => setupDPR());
+      resizeObserver.observe(canvas);
+    }
+    best = loadBest();
+    resetState();
+    state = "idle";
+    bindListeners();
+    if (overlayMsg) overlayMsg.innerHTML = `Atrapa los 💕 y esquiva los 💔<br><small>Mejor: ${best}</small>`;
+    if (startBtn) startBtn.textContent = "Jugar 🎮";
+    if (overlay) overlay.classList.remove("hidden");
+    updateHUD();
+    render();
+  }
+  function stop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    state = "idle";
+    unbindListeners();
+    if (resizeObserver) { try { resizeObserver.disconnect(); } catch (_) {} resizeObserver = null; }
+  }
+
+  window.catchGame = { start, stop };
+})();
+
+// ─── Game 3: Bubble Pop (step 14) ─────────────────────────
+(function () {
+  const LOGICAL_W = 600;
+  const LOGICAL_H = 400;
+  const GAME_DURATION = 30;
+  const BEST_KEY = "bubbleBestScore";
+
+  let canvas, ctx, scoreEl, timeEl, overlay, overlayMsg, startBtn, step14;
+  let rafId = null, lastTs = 0;
+  let state = "idle";
+  let bubbles = [], sparks = [], score = 0, timeLeft = 30, spawnTimer = 0, spawnInterval = 0.6, best = 0;
+  let listenersBound = false, resizeObserver = null;
+
+  function resolveDom() {
+    canvas = document.getElementById("bubbleCanvas");
+    scoreEl = document.getElementById("bubbleScore");
+    timeEl = document.getElementById("bubbleTime");
+    overlay = document.getElementById("bubbleOverlay");
+    overlayMsg = document.getElementById("bubbleOverlayMsg");
+    startBtn = document.getElementById("bubbleStartBtn");
+    step14 = document.getElementById("step14");
+    if (canvas) ctx = canvas.getContext("2d");
+    return !!(canvas && ctx && overlay && startBtn);
+  }
+
+  function setupDPR() {
+    if (!canvas || !ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = rect.width || LOGICAL_W;
+    const cssH = rect.height || LOGICAL_H;
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const newW = Math.max(1, Math.round(cssW * dpr));
+    const newH = Math.max(1, Math.round(cssH * dpr));
+    if (canvas.width !== newW) canvas.width = newW;
+    if (canvas.height !== newH) canvas.height = newH;
+    ctx.setTransform(newW / LOGICAL_W, 0, 0, newH / LOGICAL_H, 0, 0);
+    if (state !== "running") render();
+  }
+
+  function loadBest() {
+    const v = parseInt(localStorage.getItem(BEST_KEY) || "0", 10);
+    return Number.isFinite(v) ? v : 0;
+  }
+
+  function resetState() {
+    bubbles = [];
+    sparks = [];
+    score = 0;
+    timeLeft = GAME_DURATION;
+    spawnTimer = 0;
+    spawnInterval = 0.5;
+  }
+
+  function spawnBubble() {
+    const r = 24 + Math.random() * 16;
+    const isGood = Math.random() < 0.8;
+    bubbles.push({
+      x: r + Math.random() * (LOGICAL_W - r * 2),
+      y: LOGICAL_H + r,
+      r,
+      vy: -(40 + Math.random() * 50),
+      sway: Math.random() * Math.PI * 2,
+      swaySpeed: 1 + Math.random() * 1.5,
+      type: isGood ? "heart" : "skull",
+    });
+  }
+
+  function drawBubble(b) {
+    ctx.save();
+    // Bubble body
+    const grad = ctx.createRadialGradient(b.x - b.r * 0.3, b.y - b.r * 0.3, b.r * 0.1, b.x, b.y, b.r);
+    grad.addColorStop(0, "rgba(255, 255, 255, 0.85)");
+    grad.addColorStop(0.6, "rgba(255, 200, 215, 0.45)");
+    grad.addColorStop(1, "rgba(255, 141, 163, 0.55)");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+    ctx.fill();
+    // Highlight
+    ctx.fillStyle = "rgba(255, 255, 255, 0.7)";
+    ctx.beginPath();
+    ctx.arc(b.x - b.r * 0.35, b.y - b.r * 0.35, b.r * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    // Icon inside
+    ctx.font = `${Math.floor(b.r * 1.1)}px serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(b.type === "heart" ? "💕" : "💀", b.x, b.y);
+    ctx.restore();
+  }
+
+  function drawSparks() {
+    for (const s of sparks) {
+      ctx.globalAlpha = s.life;
+      ctx.fillStyle = s.color;
+      ctx.beginPath();
+      ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function render() {
+    if (!ctx) return;
+    ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
+    const g = ctx.createLinearGradient(0, 0, 0, LOGICAL_H);
+    g.addColorStop(0, "rgba(255, 245, 248, 0.5)");
+    g.addColorStop(1, "rgba(255, 229, 236, 0.5)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+    for (const b of bubbles) drawBubble(b);
+    drawSparks();
+  }
+
+  function tick(ts) {
+    if (state !== "running") return;
+    if (!lastTs) lastTs = ts;
+    let dt = (ts - lastTs) / 1000;
+    if (dt > 0.05) dt = 0.05;
+    lastTs = ts;
+
+    timeLeft -= dt;
+    if (timeEl) timeEl.textContent = String(Math.max(0, Math.ceil(timeLeft)));
+    if (timeLeft <= 0) { gameOver(); return; }
+
+    spawnTimer += dt;
+    if (spawnTimer >= spawnInterval) {
+      spawnTimer = 0;
+      spawnBubble();
+    }
+
+    for (const b of bubbles) {
+      b.sway += b.swaySpeed * dt;
+      b.y += b.vy * dt;
+      b.x += Math.sin(b.sway) * 18 * dt;
+    }
+    bubbles = bubbles.filter((b) => b.y + b.r > -20);
+
+    for (const s of sparks) {
+      s.x += s.vx * dt;
+      s.y += s.vy * dt;
+      s.life -= dt * 1.6;
+    }
+    sparks = sparks.filter((s) => s.life > 0);
+
+    if (scoreEl) scoreEl.textContent = String(score);
+    render();
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function spawnPopSparkle(x, y, good) {
+    if (_gamesReducedMotion) return;
+    const color = good ? "#ff4d6d" : "#888";
+    for (let i = 0; i < 8; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 60 + Math.random() * 80;
+      sparks.push({
+        x, y,
+        vx: Math.cos(a) * sp,
+        vy: Math.sin(a) * sp,
+        r: 2 + Math.random() * 2,
+        life: 1,
+        color,
+      });
+    }
+  }
+
+  function handleTap(clientX, clientY) {
+    if (state !== "running") return;
+    const rect = canvas.getBoundingClientRect();
+    const lx = ((clientX - rect.left) / rect.width) * LOGICAL_W;
+    const ly = ((clientY - rect.top) / rect.height) * LOGICAL_H;
+    // Topmost (latest) bubble wins
+    for (let i = bubbles.length - 1; i >= 0; i--) {
+      const b = bubbles[i];
+      const dx = lx - b.x, dy = ly - b.y;
+      if (dx * dx + dy * dy <= b.r * b.r) {
+        const good = b.type === "heart";
+        score += good ? 1 : -2;
+        spawnPopSparkle(b.x, b.y, good);
+        bubbles.splice(i, 1);
+        return;
+      }
+    }
+  }
+
+  function begin() {
+    resetState();
+    state = "running";
+    lastTs = 0;
+    if (overlay) overlay.classList.add("hidden");
+    if (scoreEl) scoreEl.textContent = "0";
+    if (timeEl) timeEl.textContent = String(GAME_DURATION);
+    cancelAnimationFrame(rafId);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function gameOver() {
+    state = "gameover";
+    cancelAnimationFrame(rafId);
+    rafId = null;
+    const newRecord = score > best;
+    if (newRecord) {
+      best = score;
+      try { localStorage.setItem(BEST_KEY, String(best)); } catch (_) {}
+    }
+    if (overlayMsg) {
+      const head = newRecord ? "¡Récord! 🎉" : "⏰ ¡Tiempo!";
+      overlayMsg.innerHTML = `${head}<br><small>Puntos: ${score} · Mejor: ${best}</small>`;
+    }
+    if (startBtn) startBtn.textContent = "Otra vez 🔁";
+    if (overlay) overlay.classList.remove("hidden");
+  }
+
+  function onPointer(e) {
+    if (e.cancelable) e.preventDefault();
+    if (e.touches && e.touches[0]) handleTap(e.touches[0].clientX, e.touches[0].clientY);
+    else handleTap(e.clientX, e.clientY);
+  }
+  function onKey(e) {
+    if (!step14 || !step14.classList.contains("active")) return;
+    if (e.code === "Space") {
+      e.preventDefault();
+      if (state !== "running") begin();
+    }
+  }
+  function onStart() { begin(); }
+
+  function bindListeners() {
+    if (listenersBound || !canvas) return;
+    canvas.addEventListener("mousedown", onPointer);
+    canvas.addEventListener("touchstart", onPointer, { passive: false });
+    window.addEventListener("keydown", onKey);
+    startBtn.addEventListener("click", onStart);
+    listenersBound = true;
+  }
+  function unbindListeners() {
+    if (!listenersBound) return;
+    canvas?.removeEventListener("mousedown", onPointer);
+    canvas?.removeEventListener("touchstart", onPointer);
+    window.removeEventListener("keydown", onKey);
+    startBtn?.removeEventListener("click", onStart);
+    listenersBound = false;
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    setupDPR();
+    if (!resizeObserver && "ResizeObserver" in window) {
+      resizeObserver = new ResizeObserver(() => setupDPR());
+      resizeObserver.observe(canvas);
+    }
+    best = loadBest();
+    resetState();
+    state = "idle";
+    bindListeners();
+    if (overlayMsg) overlayMsg.innerHTML = `Pincha las burbujas 💕 (evita las 💀)<br><small>30 segundos · Mejor: ${best}</small>`;
+    if (startBtn) startBtn.textContent = "Jugar 🎮";
+    if (overlay) overlay.classList.remove("hidden");
+    if (scoreEl) scoreEl.textContent = "0";
+    if (timeEl) timeEl.textContent = String(GAME_DURATION);
+    render();
+  }
+  function stop() {
+    if (rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+    state = "idle";
+    unbindListeners();
+    if (resizeObserver) { try { resizeObserver.disconnect(); } catch (_) {} resizeObserver = null; }
+  }
+
+  window.bubbleGame = { start, stop };
+})();
+
+// ─── Game 4: Alimenta a Lana (step 15) ────────────────────
+(function () {
+  const KEY = "lanaFeedHappiness";
+  const COOLDOWN_MS = 2000;
+  const DECAY_MS = 2000;
+
+  let container, step15;
+  let catArea, faceEl, moodLabel, barFill, barValue, snackBtn, cdSpan;
+  let happiness = 30;
+  let decayInterval = null;
+  let cooldownEnd = 0;
+  let cdRaf = null;
+  let mounted = false;
+
+  function loadSaved() {
+    const v = parseInt(localStorage.getItem(KEY) || "30", 10);
+    return Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : 30;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, String(Math.round(happiness))); } catch (_) {}
+  }
+
+  function moodFor(h) {
+    if (h <= 25) return { face: "😿", label: "hambrienta", mood: "hambrienta" };
+    if (h <= 50) return { face: "😺", label: "tranquila", mood: "neutral" };
+    if (h <= 75) return { face: "😻", label: "contenta", mood: "contenta" };
+    return { face: "🥰", label: "enamorada", mood: "enamorada" };
+  }
+
+  function refresh() {
+    if (!faceEl) return;
+    const m = moodFor(happiness);
+    faceEl.textContent = m.face;
+    moodLabel.textContent = `Lana está ${m.label}`;
+    catArea.setAttribute("data-mood", m.mood);
+    const v = Math.round(happiness);
+    barFill.style.width = `${v}%`;
+    barValue.textContent = `${v}/100`;
+  }
+
+  function spawnParticle() {
+    if (_gamesReducedMotion) return;
+    const el = document.createElement("span");
+    el.className = "feed-particle";
+    el.textContent = ["💕", "💖", "✨"][Math.floor(Math.random() * 3)];
+    const fx = (Math.random() - 0.5) * 80;
+    const fy = -40 - Math.random() * 50;
+    el.style.setProperty("--fx", `${fx}px`);
+    el.style.setProperty("--fy", `${fy}px`);
+    el.style.left = `${40 + Math.random() * 20}%`;
+    el.style.top = "40%";
+    catArea.appendChild(el);
+    setTimeout(() => el.remove(), 1000);
+  }
+
+  function tickCooldown() {
+    const remaining = cooldownEnd - Date.now();
+    if (remaining <= 0) {
+      snackBtn.disabled = false;
+      snackBtn.innerHTML = "🍰 Galleta";
+      cdRaf = null;
+      return;
+    }
+    snackBtn.innerHTML = `🍰 Galleta <span class="feed-snack-cooldown">${(remaining / 1000).toFixed(1)}s</span>`;
+    cdRaf = requestAnimationFrame(tickCooldown);
+  }
+
+  function feed() {
+    if (Date.now() < cooldownEnd) return;
+    const gain = 5 + Math.floor(Math.random() * 8); // 5..12
+    happiness = Math.min(100, happiness + gain);
+    save();
+    refresh();
+    catArea.classList.remove("bounce");
+    // force reflow to restart animation
+    void catArea.offsetWidth;
+    catArea.classList.add("bounce");
+    for (let i = 0; i < 5; i++) setTimeout(spawnParticle, i * 60);
+    cooldownEnd = Date.now() + COOLDOWN_MS;
+    snackBtn.disabled = true;
+    if (cdRaf) cancelAnimationFrame(cdRaf);
+    tickCooldown();
+  }
+
+  function build() {
+    container.innerHTML = "";
+    catArea = document.createElement("div");
+    catArea.className = "feed-cat-area";
+    catArea.innerHTML = `
+      <span class="feed-cat-hearts" aria-hidden="true">💕💖💕</span>
+      <span class="feed-cat-face">😺</span>
+    `;
+    container.appendChild(catArea);
+    faceEl = catArea.querySelector(".feed-cat-face");
+
+    moodLabel = document.createElement("p");
+    moodLabel.className = "feed-mood-label";
+    container.appendChild(moodLabel);
+
+    const wrap = document.createElement("div");
+    wrap.className = "feed-bar-wrap";
+    wrap.innerHTML = `
+      <div class="feed-bar-label"><span>Felicidad</span><span class="feed-bar-value">0/100</span></div>
+      <div class="feed-bar-track"><div class="feed-bar-fill"></div></div>
+    `;
+    container.appendChild(wrap);
+    barFill = wrap.querySelector(".feed-bar-fill");
+    barValue = wrap.querySelector(".feed-bar-value");
+
+    snackBtn = document.createElement("button");
+    snackBtn.type = "button";
+    snackBtn.className = "feed-snack-btn";
+    snackBtn.innerHTML = "🍰 Galleta";
+    snackBtn.addEventListener("click", feed);
+    container.appendChild(snackBtn);
+  }
+
+  function resolveDom() {
+    container = document.getElementById("feedContainer");
+    step15 = document.getElementById("step15");
+    return !!container;
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    if (!mounted) { build(); mounted = true; }
+    happiness = loadSaved();
+    refresh();
+    // Decay loop
+    if (decayInterval) clearInterval(decayInterval);
+    decayInterval = setInterval(() => {
+      if (happiness > 0) {
+        happiness = Math.max(0, happiness - 1);
+        save();
+        refresh();
+      }
+    }, DECAY_MS);
+  }
+  function stop() {
+    if (decayInterval) { clearInterval(decayInterval); decayInterval = null; }
+    if (cdRaf) { cancelAnimationFrame(cdRaf); cdRaf = null; }
+  }
+
+  window.feedGame = { start, stop };
+})();
+
+// === CONTENT_JS_MARKER ===
+// ─── Content (Storytelling) Modules ───
+
+// Feature 1: Mensaje del día (step 16)
+(function () {
+  const MESSAGES = [
+    "Hoy te amo más que ayer 💕",
+    "Tu sonrisa rompe mi código de tipos 😅",
+    "Eres mi favorita en Mondstadt 🌬️",
+    "Voy a quererte hasta que se me agote la batería 🔋",
+    "Eres la 'mandarinita' más dulce que existe 🍊",
+    "Cada mensaje tuyo me alegra el día completo 💌",
+    "Contigo, hasta los lunes saben a domingo ☀️",
+    "Si fueras un personaje, serías 5 estrellas garantizado ⭐",
+    "Tu risa es mi banda sonora favorita 🎶",
+    "Eres prueba de que la suerte existe 🍀",
+    "Te quiero en pixeles, en HD y en la vida real 📺",
+    "Mi corazón hace lag cada vez que te veo 💗",
+    "Eres la primary key de mi base de datos 🔑",
+    "Te elegiría en cada timeline posible ✨",
+    "Tus abrazos tienen 100% de uptime 🤗",
+    "Eres mi build favorito en Genshin y en la vida 🌍",
+    "Tu nombre es mi shortcut mental ⌨️",
+    "Contigo todo es co-op, nunca solo 🎮",
+    "Eres el commit más importante de mi historia 💾",
+    "Me haces feliz sin esfuerzo, mandarinita 🍊",
+    "Tu voz es mi notificación favorita 🔔",
+    "Eres mi safe space en cualquier servidor 🛡️",
+    "Te amo en latencia cero ⚡",
+    "Mi cariño por ti no tiene cooldown 💞",
+    "Eres el loot raro que nunca esperé encontrar 🎁",
+    "Contigo aprendo a quererme mejor 💗",
+    "Eres mi domingo por la tarde favorito ☕",
+    "Tu mirada me hace stack overflow de feliz 💕",
+    "Eres mi achievement principal 🏆",
+    "Te quiero más que a mi ping bajo 📶",
+    "Eres la razón de mi mejor sonrisa 😊",
+    "Me caes increíble, todos los días 💖",
+    "Eres mi café de la mañana sin café ☕",
+    "Tu existencia ya me alegra el día 🌸",
+    "Eres mi spawn point favorito 🌟",
+    "Cuando estás cerca, todo se siente bonito 🌷",
+    "Eres el patch note que mejoró mi vida 🔧",
+    "Tu paciencia es legendaria, te amo por eso 💗",
+    "Eres mi favorita en cualquier reroll 🎲",
+    "Te quiero más que a un crit perfecto 💥",
+    "Eres mi save game favorito 💾",
+    "Contigo todo tiene más color 🎨",
+    "Eres la canción que escucho en repeat 🎵",
+    "Te amo aunque me ganes en todos los juegos 🎮",
+    "Eres mi co-op de toda la vida 👫",
+    "Me das ganas de ser mejor cada día 🌱",
+    "Eres más bonita que un cielo en Sumeru 🌅",
+    "Tu olor a mandarinita me cura 🍊",
+    "Eres mi inventario más preciado 🎒",
+    "Contigo gano aunque pierda 🏅",
+    "Eres mi sunrise y mi sunset 🌄",
+    "Te amo en formato vertical y horizontal 📱",
+    "Eres el render principal de mi corazón 💖",
+    "Cada día contigo es DLC gratis 🎮",
+    "Eres mi favorita en este universo y en los paralelos 🌌",
+    "Tu cariño es mi armadura más fuerte 🛡️",
+    "Eres mi mañana, mi tarde y mi noche 🌙",
+    "Te quiero en .txt, .png y en persona 📄",
+    "Eres mi lugar seguro 🏡",
+    "Contigo el tiempo se siente diferente, más bonito ⏳",
+    "Eres mi razón favorita para abrir los ojos 👀",
+    "Te amo con bug-free certainty 💯",
+    "Eres la mandarinita de mi corazón para siempre 🍊💕",
+    "Mi día empieza cuando pienso en ti 🌅",
+    "Eres mi power-up favorito 🍄",
+    "Contigo cada partida vale la pena 🎮",
+  ];
+
+  let dailyDateEl, dailyMsgEl;
+
+  function dayOfYear(date) {
+    const start = new Date(date.getFullYear(), 0, 0);
+    const diff = (date - start) + ((start.getTimezoneOffset() - date.getTimezoneOffset()) * 60 * 1000);
+    return Math.floor(diff / 86400000);
+  }
+
+  function formatDate(d) {
+    const dias = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
+    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    return `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]}`;
+  }
+
+  function resolveDom() {
+    dailyDateEl = document.getElementById("dailyDate");
+    dailyMsgEl = document.getElementById("dailyMsg");
+    return !!(dailyDateEl && dailyMsgEl);
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    const now = new Date();
+    const idx = dayOfYear(now) % MESSAGES.length;
+    dailyDateEl.textContent = formatDate(now);
+    dailyMsgEl.textContent = MESSAGES[idx];
+    dailyMsgEl.classList.remove("visible");
+    // Force reflow so the fade-in transition replays each time
+    // eslint-disable-next-line no-unused-expressions
+    void dailyMsgEl.offsetWidth;
+    requestAnimationFrame(() => {
+      dailyMsgEl.classList.add("visible");
+    });
+  }
+
+  function stop() {
+    if (!resolveDom()) return;
+    dailyMsgEl.classList.remove("visible");
+  }
+
+  window.dailyMessage = { start, stop };
+})();
+
+// Feature 2: Razón al azar (step 17)
+(function () {
+  const REASONS = [
+    "Porque cuando ríes, mi día se ilumina 🌞",
+    "Porque te aguantas mis bromas malas 😂",
+    "Porque eres mi compañera en Genshin y en la vida 🌍",
+    "Porque tu nariz se arruga cuando piensas 🥺",
+    "Porque me haces sentir en casa donde quiera que estemos 🏡",
+    "Porque tu paciencia conmigo es infinita 💗",
+    "Porque me robaste el corazón en silencio 💔→💖",
+    "Porque tu sonrisa cura cualquier mal día ✨",
+    "Porque hueles a mandarinita y eso me encanta 🍊",
+    "Porque cantas aunque no te sepas la letra 🎤",
+    "Porque tus mensajes me alegran a media noche 💌",
+    "Porque sabes calmarme con una sola mirada 👀",
+    "Porque me apoyas incluso cuando me equivoco 🤝",
+    "Porque tu voz me trae paz 🕊️",
+    "Porque me haces sentir suficiente tal como soy 💗",
+    "Porque eres mi mejor compañera de aventuras 🗺️",
+    "Porque me quieres con todo y mis manías 🤍",
+    "Porque tu cariño no tiene horarios 🌙",
+    "Porque te emocionan las cosas pequeñas 🌸",
+    "Porque me haces reír hasta cuando estoy serio 😄",
+    "Porque tus abrazos son mi lugar favorito 🤗",
+    "Porque crees en mí cuando ni yo lo hago 💪",
+    "Porque me eliges, otra vez, todos los días 💝",
+    "Porque haces mejor cualquier momento 🌟",
+    "Porque tu corazón es enorme y bonito 💖",
+    "Porque me cuidas sin que tenga que pedirlo 🌷",
+    "Porque eres más fuerte de lo que crees 🦋",
+    "Porque tienes la ternura de Lana y la valentía de un dragón 🐉",
+    "Porque pierdo la noción del tiempo contigo ⏳",
+    "Porque tus 'buenos días' me hacen el día 🌅",
+    "Porque tu manera de quererme es única ✨",
+    "Porque tu risa es la melodía más bonita 🎶",
+    "Porque me haces sentir orgulloso solo de estar a tu lado 🌟",
+    "Porque eres mi calma en medio del ruido 🌊",
+    "Porque amas con el alma entera 💞",
+    "Porque tus ojos cuentan historias bonitas 👁️",
+    "Porque pones empeño en todo lo que haces 🌱",
+    "Porque me enseñas a amar mejor 💕",
+    "Porque incluso enojada eres adorable 😤💗",
+    "Porque me das paz en el caos 🌷",
+    "Porque tu existencia me hace afortunado 🍀",
+    "Porque sabes consolarme sin palabras 🤍",
+    "Porque tu ternura es mi droga favorita 🥺",
+    "Porque haces que ame los días normales 📅",
+    "Porque jugar contigo siempre se siente como ganar 🎮",
+    "Porque conmigo eres tú y eso lo es todo 🌸",
+    "Porque tus besos son mejores que cualquier loot 💋",
+    "Porque tu manera de pensar me inspira 💡",
+    "Porque te preocupas por los detalles 🌹",
+    "Porque mi corazón te eligió primero ❤️",
+    "Porque tu existencia hace mejor a este mundo 🌍",
+    "Porque me prometo amarte un poquito más cada día 💗",
+    "Porque cuando duermes pareces un angelito 👼",
+    "Porque eres mi razón y mi destino 💝",
+  ];
+
+  let reasonTextEl, reasonBtnEl;
+  let lastIdx = -1;
+  let count = 0;
+  let bound = false;
+  let fadeTimeout = null;
+
+  function resolveDom() {
+    reasonTextEl = document.getElementById("reasonText");
+    reasonBtnEl = document.getElementById("reasonBtn");
+    return !!(reasonTextEl && reasonBtnEl);
+  }
+
+  function pickNext() {
+    if (REASONS.length <= 1) return 0;
+    let idx = Math.floor(Math.random() * REASONS.length);
+    while (idx === lastIdx) idx = Math.floor(Math.random() * REASONS.length);
+    lastIdx = idx;
+    return idx;
+  }
+
+  function showReason() {
+    if (!reasonTextEl) return;
+    const idx = pickNext();
+    count++;
+    reasonTextEl.classList.add("fading");
+    if (fadeTimeout) clearTimeout(fadeTimeout);
+    fadeTimeout = setTimeout(() => {
+      reasonTextEl.innerHTML =
+        `<div><span class="reason-counter">Razón N° ${count}</span>${REASONS[idx]}</div>`;
+      reasonTextEl.classList.remove("fading");
+      fadeTimeout = null;
+    }, 320);
+  }
+
+  function onClick() {
+    showReason();
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    count = 0;
+    lastIdx = -1;
+    if (fadeTimeout) { clearTimeout(fadeTimeout); fadeTimeout = null; }
+    reasonTextEl.classList.remove("fading");
+    reasonTextEl.innerHTML = "<div>Toca el botón para descubrir una razón 💕</div>";
+    if (!bound) {
+      reasonBtnEl.addEventListener("click", onClick);
+      bound = true;
+    }
+  }
+
+  function stop() {
+    if (fadeTimeout) { clearTimeout(fadeTimeout); fadeTimeout = null; }
+    if (!resolveDom()) return;
+    if (bound) {
+      reasonBtnEl.removeEventListener("click", onClick);
+      bound = false;
+    }
+  }
+
+  window.randomReason = { start, stop };
+})();
+
+// Feature 3: Carta tipeada (step 18)
+(function () {
+  const LETTER = [
+    "Mandarinita 🍊,",
+    "sé que a veces no encuentro las palabras correctas,",
+    "pero hoy quiero intentarlo.",
+    "",
+    "Eres la primera persona en quien pienso al despertar",
+    "y la última a la que sonrío antes de dormir.",
+    "",
+    "Cada partida, cada risa, cada mensaje tuyo...",
+    "es la razón por la que mi mundo gira más bonito.",
+    "",
+    "Gracias por elegirme,",
+    "por aguantarme,",
+    "por amarme tal como soy.",
+    "",
+    "Te amo más de lo que las palabras pueden cargar.",
+    "",
+    "Tuyo siempre,",
+    "Tu novio 💕",
+  ].join("\n");
+
+  const CLOSING = "\n\nCon todo mi corazón, para siempre.";
+  const PUNCT = new Set([".", ",", ";", ":", "!", "?", "…"]);
+  const CHAR_DELAY = 30;
+  const PUNCT_DELAY = 200;
+
+  let letterEl, replayBtnEl;
+  let timeoutId = null;
+  let typing = false;
+  let charIdx = 0;
+  let bound = false;
+
+  function resolveDom() {
+    letterEl = document.getElementById("letterContainer");
+    replayBtnEl = document.getElementById("letterReplayBtn");
+    return !!(letterEl && replayBtnEl);
+  }
+
+  function clearTimer() {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function render(text, withCursor) {
+    if (!letterEl) return;
+    const cursor = withCursor ? '<span class="letter-cursor" aria-hidden="true">|</span>' : "";
+    letterEl.innerHTML = escapeHtml(text) + cursor;
+  }
+
+  function finalize() {
+    typing = false;
+    const fullText = LETTER + CLOSING;
+    letterEl.innerHTML =
+      escapeHtml(fullText) +
+      '<span class="letter-rose" aria-hidden="true">🌹</span>' +
+      '<span class="letter-skip-hint">Toca la carta o pulsa Repetir ✨</span>';
+  }
+
+  function tick() {
+    if (!typing) return;
+    if (charIdx >= LETTER.length) {
+      finalize();
+      return;
+    }
+    const ch = LETTER.charAt(charIdx);
+    charIdx++;
+    render(LETTER.slice(0, charIdx), true);
+    const delay = PUNCT.has(ch) ? PUNCT_DELAY : CHAR_DELAY;
+    timeoutId = setTimeout(tick, delay);
+  }
+
+  function skipToEnd() {
+    if (!typing) return;
+    clearTimer();
+    charIdx = LETTER.length;
+    finalize();
+  }
+
+  function startTyping() {
+    if (!letterEl) return;
+    clearTimer();
+    typing = true;
+    charIdx = 0;
+    render("", true);
+    timeoutId = setTimeout(tick, CHAR_DELAY);
+  }
+
+  function onLetterClick() {
+    if (typing) {
+      skipToEnd();
+    } else {
+      startTyping();
+    }
+  }
+  function onReplayClick() {
+    startTyping();
+  }
+  function onLetterKey(e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      onLetterClick();
+    }
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    letterEl.setAttribute("role", "button");
+    letterEl.setAttribute("tabindex", "0");
+    letterEl.setAttribute("aria-label", "Carta de amor — toca para completar la animación");
+    if (!bound) {
+      letterEl.addEventListener("click", onLetterClick);
+      letterEl.addEventListener("keydown", onLetterKey);
+      replayBtnEl.addEventListener("click", onReplayClick);
+      bound = true;
+    }
+    startTyping();
+  }
+
+  function stop() {
+    clearTimer();
+    typing = false;
+    if (bound && letterEl && replayBtnEl) {
+      letterEl.removeEventListener("click", onLetterClick);
+      letterEl.removeEventListener("keydown", onLetterKey);
+      replayBtnEl.removeEventListener("click", onReplayClick);
+      bound = false;
+    }
+  }
+
+  window.letterTyper = { start, stop };
+})();
+
+// Feature 4: Aventura — Choose Your Own Adventure (step 19)
+(function () {
+  const STORY = {
+    start: {
+      text: "Lana te invita a una aventura por un mundo mágico. Sus ojitos brillan: '¿Por dónde empezamos, mandarinita?' 🐱✨",
+      choices: [
+        { label: "Bosque de cerezos 🌸", next: "A" },
+        { label: "Castillo flotante 🏰", next: "B" },
+        { label: "Playa de cristales 🌊", next: "C" },
+      ],
+    },
+    A: {
+      text: "Caminas entre cerezos en flor. Pétalos rosados caen a tu alrededor como si el bosque celebrara tu llegada. 🌸",
+      choices: [
+        { label: "Recoger un pétalo 🌸", next: "endForest" },
+        { label: "Bailar bajo el árbol 💃", next: "endDance" },
+        { label: "Seguir a una luciérnaga 🌟", next: "endExtra2" },
+      ],
+    },
+    B: {
+      text: "Subes por escaleras hechas de luz. El viento susurra tu nombre y el castillo te recibe con campanas de cristal. 🏰",
+      choices: [
+        { label: "Sentarte en el trono 👑", next: "endCrown" },
+        { label: "Mirar las estrellas ✨", next: "endStars" },
+      ],
+    },
+    C: {
+      text: "Llegas a una playa donde la arena es cristal y el mar canta tu nombre en olas suaves. 🌊",
+      choices: [
+        { label: "Tocar el mar 🐚", next: "endOcean" },
+        { label: "Caminar hacia el horizonte 🌅", next: "endHorizon" },
+        { label: "Hacer un castillo de arena 🏖️", next: "endExtra1" },
+      ],
+    },
+    endForest: {
+      ending: true,
+      text: "Recoges el pétalo y se transforma en una llave dorada. Lana ronronea: 'Es la llave de mi corazón, y ya era tuya.'",
+    },
+    endDance: {
+      ending: true,
+      text: "Bailas con Lana bajo una lluvia de pétalos. El bosque entero late al ritmo de tu risa. Mientras tú existas, yo bailo.",
+    },
+    endCrown: {
+      ending: true,
+      text: "Te sientas en el trono y una corona de flores aparece sobre tu cabeza. Eres la reina de mi mundo, ayer, hoy y siempre.",
+    },
+    endStars: {
+      ending: true,
+      text: "Las estrellas se inclinan hacia ti y forman tu nombre en el cielo. Cada una promete cuidarte mientras yo no esté.",
+    },
+    endOcean: {
+      ending: true,
+      text: "El mar te entrega una perla con forma de corazón. 'Es la suma de todas mis emociones por ti', dice Lana.",
+    },
+    endHorizon: {
+      ending: true,
+      text: "Caminas hacia el horizonte y el sol pinta el cielo del color de tus mejillas. Te seguiría hasta el fin del mundo.",
+    },
+    endExtra1: {
+      ending: true,
+      text: "Construyes un castillo de arena y al alba se vuelve real. 'Mira', dice Lana, 'también puedes crear mundos con tus manos.'",
+    },
+    endExtra2: {
+      ending: true,
+      text: "La luciérnaga se posa en tu hombro y susurra: 'Donde tú estés, habrá luz.' Y el bosque entero se ilumina contigo.",
+    },
+  };
+
+  const TOTAL_CHAPTERS = 3; // start -> mid -> ending
+
+  let containerEl, restartBtnEl;
+  let bound = false;
+  let depth = 1;
+  let fadeTimeout = null;
+
+  function resolveDom() {
+    containerEl = document.getElementById("adventureContainer");
+    restartBtnEl = document.getElementById("adventureRestartBtn");
+    return !!(containerEl && restartBtnEl);
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function renderNode(key) {
+    const node = STORY[key];
+    if (!node || !containerEl) return;
+
+    containerEl.classList.add("fading");
+    if (fadeTimeout) clearTimeout(fadeTimeout);
+
+    fadeTimeout = setTimeout(() => {
+      let html = "";
+
+      if (node.ending) {
+        html += `<div class="adventure-chapter">Final ${depth} / ${TOTAL_CHAPTERS}</div>`;
+        html += `<div class="adventure-text">${escapeHtml(node.text)}</div>`;
+        html += `<div class="adventure-ending">Te amo, mandarinita 💕</div>`;
+        html += `<div class="adventure-choices">`;
+        html += `<button type="button" class="btn btn-secondary adventure-choice" data-next="start">Volver al inicio 🔁</button>`;
+        html += `</div>`;
+      } else {
+        html += `<div class="adventure-chapter">Capítulo ${depth} / ${TOTAL_CHAPTERS}</div>`;
+        html += `<div class="adventure-text">${escapeHtml(node.text)}</div>`;
+        html += `<div class="adventure-choices">`;
+        for (const c of node.choices) {
+          html += `<button type="button" class="btn btn-secondary adventure-choice" data-next="${escapeHtml(c.next)}">${escapeHtml(c.label)}</button>`;
+        }
+        html += `</div>`;
+      }
+
+      containerEl.innerHTML = html;
+      containerEl.classList.remove("fading");
+
+      containerEl.querySelectorAll(".adventure-choice").forEach((btn) => {
+        btn.addEventListener("click", onChoiceClick);
+      });
+      fadeTimeout = null;
+    }, 360);
+  }
+
+  function onChoiceClick(e) {
+    const nextKey = e.currentTarget.getAttribute("data-next");
+    if (!nextKey) return;
+    if (nextKey === "start") {
+      depth = 1;
+    } else {
+      depth = Math.min(TOTAL_CHAPTERS, depth + 1);
+    }
+    renderNode(nextKey);
+  }
+
+  function onRestart() {
+    depth = 1;
+    renderNode("start");
+  }
+
+  function start() {
+    if (!resolveDom()) return;
+    depth = 1;
+    if (!bound) {
+      restartBtnEl.addEventListener("click", onRestart);
+      bound = true;
+    }
+    renderNode("start");
+  }
+
+  function stop() {
+    if (fadeTimeout) { clearTimeout(fadeTimeout); fadeTimeout = null; }
+    if (!resolveDom()) return;
+    if (bound) {
+      restartBtnEl.removeEventListener("click", onRestart);
+      bound = false;
+    }
+    containerEl.innerHTML = "";
+    depth = 1;
+  }
+
+  window.adventure = { start, stop };
+})();
+
+// ─── Widgets + Theme + Outfits + Seasonal/Birthday modes ───
+// All key dates live here so they are easy to tweak later.
+const DATES = {
+  relationshipStart: "2025-10-08", // 8 de octubre del 2025 — nos hicimos novios
+  herBirthday:       "2006-09-26", // 26 de septiembre — su cumple
+  anniversary:       "2025-10-08", // mismo día que nos hicimos novios
+  startedTalking:    "2025-09-25", // 25 de septiembre del 2025 — empezamos a hablar
+  valentines:        { month: 2,  day: 14 }, // 14 feb
+  christmas:         { month: 12, day: 25 }, // 25 dic
+};
+
+const widgetsPrefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// ─── Widgets temporales (Step 20) ───
+(function () {
+  let timeInterval = null;
+  let countdownInterval = null;
+  let calendarOffset = 0; // months from current month for navigation
+
+  function parseDate(str) {
+    const [y, m, d] = str.split("-").map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  function diffSince(startDate, now) {
+    let years = now.getFullYear() - startDate.getFullYear();
+    let months = now.getMonth() - startDate.getMonth();
+    let days = now.getDate() - startDate.getDate();
+    let hours = now.getHours() - startDate.getHours();
+    let minutes = now.getMinutes() - startDate.getMinutes();
+
+    if (minutes < 0) { minutes += 60; hours -= 1; }
+    if (hours < 0)   { hours   += 24; days  -= 1; }
+    if (days < 0) {
+      // borrow days from the previous month
+      const prev = new Date(now.getFullYear(), now.getMonth(), 0);
+      days += prev.getDate();
+      months -= 1;
+    }
+    if (months < 0) { months += 12; years -= 1; }
+
+    return { years, months, days, hours, minutes };
+  }
+
+  function renderTimeTogether() {
+    const box = document.getElementById("timeTogetherBox");
+    if (!box) return;
+    const start = parseDate(DATES.relationshipStart);
+    const now = new Date();
+    const d = diffSince(start, now);
+    box.innerHTML = `
+      <div class="widget-label">💖 Tiempo juntos</div>
+      <div class="widget-value">
+        Llevamos ${d.years} año${d.years === 1 ? "" : "s"},
+        ${d.months} mes${d.months === 1 ? "" : "es"},
+        ${d.days} día${d.days === 1 ? "" : "s"},<br>
+        ${d.hours} hora${d.hours === 1 ? "" : "s"} y
+        ${d.minutes} minuto${d.minutes === 1 ? "" : "s"} juntos 💕
+      </div>
+    `;
+  }
+
+  function nextSpecialDate(now) {
+    const year = now.getFullYear();
+    const candidates = [];
+    const bday = parseDate(DATES.herBirthday);
+    const anniv = parseDate(DATES.anniversary);
+    const talk = parseDate(DATES.startedTalking);
+    candidates.push({ name: "tu cumple",           emoji: "🎂", month: bday.getMonth() + 1,  day: bday.getDate() });
+    candidates.push({ name: "nuestro aniversario", emoji: "💍", month: anniv.getMonth() + 1, day: anniv.getDate() });
+    candidates.push({ name: "el día que empezamos a hablar", emoji: "💌", month: talk.getMonth() + 1, day: talk.getDate() });
+    candidates.push({ name: "San Valentín",        emoji: "💝", month: DATES.valentines.month, day: DATES.valentines.day });
+    candidates.push({ name: "Navidad",             emoji: "🎄", month: DATES.christmas.month,  day: DATES.christmas.day });
+
+    let best = null;
+    for (const c of candidates) {
+      let target = new Date(year, c.month - 1, c.day, 0, 0, 0, 0);
+      if (target.getTime() < now.getTime()) {
+        target = new Date(year + 1, c.month - 1, c.day, 0, 0, 0, 0);
+      }
+      const delta = target.getTime() - now.getTime();
+      if (!best || delta < best.delta) best = { ...c, target, delta };
+    }
+    return best;
+  }
+
+  function renderCountdown() {
+    const box = document.getElementById("countdownBox");
+    if (!box) return;
+    const now = new Date();
+    const ev = nextSpecialDate(now);
+    if (!ev) return;
+    const totalSec = Math.max(0, Math.floor(ev.delta / 1000));
+    const days = Math.floor(totalSec / 86400);
+    const hours = Math.floor((totalSec % 86400) / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+    box.innerHTML = `
+      <div class="widget-label">${ev.emoji} Próxima fecha — ${ev.name}</div>
+      <div class="widget-value">
+        Faltan <strong>${days}</strong> día${days === 1 ? "" : "s"},
+        <strong>${hours}</strong> h,
+        <strong>${minutes}</strong> min,
+        <strong>${seconds}</strong> s
+      </div>
+    `;
+  }
+
+  function specialDaysFor(year, month0) {
+    const set = new Set();
+    const bday = parseDate(DATES.herBirthday);
+    const anniv = parseDate(DATES.anniversary);
+    const talk = parseDate(DATES.startedTalking);
+    if (bday.getMonth()  === month0) set.add(bday.getDate());
+    if (anniv.getMonth() === month0) set.add(anniv.getDate());
+    if (talk.getMonth()  === month0) set.add(talk.getDate());
+    if (DATES.valentines.month - 1 === month0) set.add(DATES.valentines.day);
+    if (DATES.christmas.month  - 1 === month0) set.add(DATES.christmas.day);
+    return set;
+  }
+
+  function renderCalendar() {
+    const box = document.getElementById("calendarBox");
+    if (!box) return;
+    const now = new Date();
+    const viewDate = new Date(now.getFullYear(), now.getMonth() + calendarOffset, 1);
+    const year = viewDate.getFullYear();
+    const month0 = viewDate.getMonth();
+    const monthNames = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+    const daysInMonth = new Date(year, month0 + 1, 0).getDate();
+    // Adjust so Monday = 0 ... Sunday = 6 (Spanish layout L M X J V S D)
+    const jsFirstDay = new Date(year, month0, 1).getDay(); // 0 = Sunday
+    const firstDay = (jsFirstDay + 6) % 7;
+
+    const special = specialDaysFor(year, month0);
+    const isCurrentMonth = (year === now.getFullYear() && month0 === now.getMonth());
+    const todayDate = now.getDate();
+
+    const cellArr = [];
+    for (let i = 0; i < firstDay; i++) cellArr.push("<td></td>");
+    for (let d = 1; d <= daysInMonth; d++) {
+      const classes = [];
+      if (isCurrentMonth && d === todayDate) classes.push("today");
+      if (special.has(d)) classes.push("special");
+      const cls = classes.length ? ` class="${classes.join(" ")}"` : "";
+      cellArr.push(`<td${cls}>${d}</td>`);
+    }
+    while (cellArr.length % 7 !== 0) cellArr.push("<td></td>");
+
+    let rows = "";
+    for (let i = 0; i < cellArr.length; i += 7) {
+      rows += "<tr>" + cellArr.slice(i, i + 7).join("") + "</tr>";
+    }
+
+    box.innerHTML = `
+      <div class="cal-header">
+        <button class="cal-nav" type="button" data-cal-dir="-1" aria-label="Mes anterior">‹</button>
+        <span class="cal-title">${monthNames[month0]} ${year}</span>
+        <button class="cal-nav" type="button" data-cal-dir="1" aria-label="Mes siguiente">›</button>
+      </div>
+      <table>
+        <thead><tr>
+          <th>L</th><th>M</th><th>X</th><th>J</th><th>V</th><th>S</th><th>D</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    `;
+
+    box.querySelectorAll(".cal-nav").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const dir = parseInt(btn.dataset.calDir, 10) || 0;
+        calendarOffset += dir;
+        renderCalendar();
+      });
+    });
+  }
+
+  function start() {
+    renderTimeTogether();
+    renderCountdown();
+    renderCalendar();
+    if (timeInterval) clearInterval(timeInterval);
+    if (countdownInterval) clearInterval(countdownInterval);
+    timeInterval = setInterval(renderTimeTogether, 60 * 1000);
+    countdownInterval = setInterval(renderCountdown, 1000);
+  }
+
+  function stop() {
+    if (timeInterval) { clearInterval(timeInterval); timeInterval = null; }
+    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+  }
+
+  window.widgets = { start, stop };
+})();
+
+// ─── Theme + Settings (dark mode, music, cursor, outfit) ───
+(function () {
+  const LS = {
+    dark:    "darkMode",
+    music:   "musicOn",
+    cursor:  "heartCursor",
+    outfit:  "lanaOutfit",
+  };
+
+  const darkToggle   = document.getElementById("toggleDarkMode");
+  const musicToggle  = document.getElementById("toggleMusic");
+  const cursorToggle = document.getElementById("toggleCursor");
+  const outfitSelect = document.getElementById("selectOutfit");
+  const catContainer = document.getElementById("cat");
+
+  // ─── Dark mode ───
+  function applyDarkMode(on) {
+    document.body.classList.toggle("dark-mode", on);
+  }
+  function setDarkMode(on, persist = true) {
+    applyDarkMode(on);
+    if (persist) {
+      try { localStorage.setItem(LS.dark, on ? "1" : "0"); } catch (_) {}
+    }
+    if (darkToggle) darkToggle.checked = on;
+  }
+
+  // ─── Heart cursor ───
+  function applyCursor(on) {
+    document.body.classList.toggle("custom-cursor", on);
+  }
+  function setCursor(on, persist = true) {
+    applyCursor(on);
+    if (persist) {
+      try { localStorage.setItem(LS.cursor, on ? "1" : "0"); } catch (_) {}
+    }
+    if (cursorToggle) cursorToggle.checked = on;
+  }
+
+  // ─── Lana outfit ───
+  const OUTFITS = ["default", "crown", "glasses", "party"];
+  function applyOutfit(name) {
+    if (!catContainer) return;
+    OUTFITS.forEach((o) => catContainer.classList.remove("cat-outfit-" + o));
+    if (OUTFITS.includes(name)) {
+      catContainer.classList.add("cat-outfit-" + name);
+    }
+  }
+  function setOutfit(name, persist = true) {
+    if (!OUTFITS.includes(name)) name = "default";
+    applyOutfit(name);
+    if (persist) {
+      try { localStorage.setItem(LS.outfit, name); } catch (_) {}
+    }
+    if (outfitSelect) outfitSelect.value = name;
+  }
+
+  // ─── Background music (Web Audio synth pad) ───
+  let audioCtx = null;
+  let masterGain = null;
+  let oscNodes = [];
+  let musicPlaying = false;
+
+  function startMusic() {
+    if (musicPlaying) return;
+    if (widgetsPrefersReducedMotion) return; // honor reduced motion preference
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      audioCtx = audioCtx || new Ctx();
+      if (audioCtx.state === "suspended") audioCtx.resume();
+      masterGain = audioCtx.createGain();
+      masterGain.gain.value = 0.0;
+      masterGain.connect(audioCtx.destination);
+      // gentle C-E-G chord (C4=261.63, E4=329.63, G4=392.00)
+      const freqs = [261.63, 329.63, 392.0];
+      oscNodes = freqs.map((f, i) => {
+        const osc = audioCtx.createOscillator();
+        osc.type = "sine";
+        osc.frequency.value = f;
+        const g = audioCtx.createGain();
+        g.gain.value = 0.05;
+        osc.connect(g).connect(masterGain);
+        // gentle LFO for breathing pad effect
+        const lfo = audioCtx.createOscillator();
+        lfo.frequency.value = 0.1 + i * 0.05;
+        const lfoGain = audioCtx.createGain();
+        lfoGain.gain.value = 0.02;
+        lfo.connect(lfoGain).connect(g.gain);
+        lfo.start();
+        osc.start();
+        return { osc, lfo };
+      });
+      const now = audioCtx.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setValueAtTime(0.0, now);
+      masterGain.gain.linearRampToValueAtTime(0.15, now + 1.5);
+      musicPlaying = true;
+    } catch (_) { /* ignore */ }
+  }
+
+  function stopMusic() {
+    if (!musicPlaying || !audioCtx || !masterGain) {
+      musicPlaying = false;
+      return;
+    }
+    try {
+      const now = audioCtx.currentTime;
+      masterGain.gain.cancelScheduledValues(now);
+      masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+      masterGain.gain.linearRampToValueAtTime(0.0, now + 0.8);
+      const toStop = oscNodes.slice();
+      setTimeout(() => {
+        try {
+          toStop.forEach(({ osc, lfo }) => { osc.stop(); lfo.stop(); });
+        } catch (_) {}
+      }, 900);
+      oscNodes = [];
+    } catch (_) {}
+    musicPlaying = false;
+  }
+
+  function setMusic(on, persist = true) {
+    if (on) startMusic(); else stopMusic();
+    if (persist) {
+      try { localStorage.setItem(LS.music, on ? "1" : "0"); } catch (_) {}
+    }
+    if (musicToggle) musicToggle.checked = on;
+  }
+
+  // ─── Wire up controls ───
+  darkToggle?.addEventListener("change", (e) => setDarkMode(!!e.target.checked));
+  cursorToggle?.addEventListener("change", (e) => setCursor(!!e.target.checked));
+  outfitSelect?.addEventListener("change", (e) => setOutfit(e.target.value));
+  musicToggle?.addEventListener("change", (e) => {
+    // Checkbox click counts as user gesture for AudioContext.
+    setMusic(!!e.target.checked);
+  });
+
+  // ─── Load persisted prefs on boot ───
+  function loadPrefs() {
+    try {
+      const dark = localStorage.getItem(LS.dark) === "1";
+      setDarkMode(dark, false);
+    } catch (_) {}
+    try {
+      const cur = localStorage.getItem(LS.cursor) === "1";
+      setCursor(cur, false);
+    } catch (_) {}
+    try {
+      const o = localStorage.getItem(LS.outfit) || "default";
+      setOutfit(o, false);
+    } catch (_) {}
+    try {
+      const m = localStorage.getItem(LS.music) === "1";
+      if (musicToggle) musicToggle.checked = m;
+      if (m && !widgetsPrefersReducedMotion) {
+        const tryStart = () => {
+          startMusic();
+          if (musicPlaying) {
+            document.removeEventListener("click", tryStart);
+            document.removeEventListener("keydown", tryStart);
+            document.removeEventListener("touchstart", tryStart);
+          }
+        };
+        startMusic();
+        if (!musicPlaying) {
+          document.addEventListener("click", tryStart);
+          document.addEventListener("keydown", tryStart);
+          document.addEventListener("touchstart", tryStart);
+        }
+      }
+    } catch (_) {}
+  }
+  loadPrefs();
+
+  window.themeSettings = { setDarkMode, setCursor, setOutfit, setMusic };
+})();
+
+// ─── Seasonal theme ───
+(function () {
+  const month = new Date().getMonth() + 1; // 1..12
+  let seasonClass = "season-spring";
+  let emoji = "🌸";
+  if (month === 12 || month <= 2)     { seasonClass = "season-winter"; emoji = "❄️"; }
+  else if (month >= 3 && month <= 5)  { seasonClass = "season-spring"; emoji = "🌸"; }
+  else if (month >= 6 && month <= 8)  { seasonClass = "season-summer"; emoji = "☀️"; }
+  else                                { seasonClass = "season-autumn"; emoji = "🍂"; }
+  document.body.classList.add(seasonClass);
+
+  if (widgetsPrefersReducedMotion) return;
+
+  const overlay = document.createElement("div");
+  overlay.className = "season-overlay";
+  overlay.setAttribute("aria-hidden", "true");
+  const COUNT = 10;
+  for (let i = 0; i < COUNT; i++) {
+    const f = document.createElement("span");
+    f.className = "season-flake";
+    f.textContent = emoji;
+    f.style.left = (Math.random() * 100) + "vw";
+    const duration = 12 + Math.random() * 14;
+    f.style.animationDuration = duration + "s";
+    f.style.animationDelay = (-Math.random() * duration) + "s";
+    f.style.setProperty("--drift", ((Math.random() * 6) - 3) + "rem");
+    f.style.fontSize = (0.9 + Math.random() * 1.2) + "rem";
+    overlay.appendChild(f);
+  }
+  document.body.appendChild(overlay);
+})();
+
+// ─── Birthday / Anniversary mode ───
+(function () {
+  function todayMatches(dateStr) {
+    const [, m, day] = dateStr.split("-").map(Number);
+    const now = new Date();
+    return (now.getMonth() + 1) === m && now.getDate() === day;
+  }
+
+  function showToast(text, durationMs = 5000) {
+    const t = document.createElement("div");
+    t.className = "celebrate-toast";
+    t.setAttribute("role", "status");
+    const span = document.createElement("span");
+    span.textContent = text;
+    t.appendChild(span);
+    const close = document.createElement("button");
+    close.type = "button";
+    close.setAttribute("aria-label", "Cerrar");
+    close.textContent = "✕";
+    close.addEventListener("click", () => {
+      t.classList.remove("show");
+      setTimeout(() => t.remove(), 500);
+    });
+    t.appendChild(close);
+    document.body.appendChild(t);
+    requestAnimationFrame(() => t.classList.add("show"));
+    setTimeout(() => {
+      if (t.isConnected) {
+        t.classList.remove("show");
+        setTimeout(() => t.remove(), 500);
+      }
+    }, durationMs);
+  }
+
+  function celebrate(text, withConfetti, sessionKey) {
+    if (sessionStorage.getItem(sessionKey) === "1") return;
+    try { sessionStorage.setItem(sessionKey, "1"); } catch (_) {}
+    showToast(text, 5500);
+    if (withConfetti && typeof startSparkles === "function") {
+      try { startSparkles(); } catch (_) {}
+    }
+    try {
+      const catEl = document.getElementById("cat");
+      if (catEl) {
+        const prev = catEl.getAttribute("data-mood");
+        catEl.setAttribute("data-mood", "excited");
+        setTimeout(() => {
+          if (prev) catEl.setAttribute("data-mood", prev);
+          else catEl.removeAttribute("data-mood");
+        }, 4000);
+      }
+    } catch (_) {}
+  }
+
+  const isBirthday    = todayMatches(DATES.herBirthday);
+  const isAnniversary = todayMatches(DATES.anniversary);
+
+  setTimeout(() => {
+    if (isBirthday) {
+      celebrate("🎂 ¡Feliz cumple, Mandarinita! 💖", true, "birthdayShown");
+    } else if (isAnniversary) {
+      celebrate("💍✨ Hoy es un día muy especial para nosotros 💖", true, "anniversaryShown");
+    }
+  }, 400);
+})();
+
+// ─── Wire widgets lifecycle into nextStep ───
+(function () {
+  if (typeof nextStep !== "function") return;
+  const originalNextStep = nextStep;
+  window.nextStep = function (id) {
+    originalNextStep(id);
+    if (window.widgets) {
+      if (id === 20) window.widgets.start();
+      else window.widgets.stop();
+    }
+  };
 })();

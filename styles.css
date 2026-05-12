@@ -1503,6 +1503,36 @@ body.dark-mode .widget-box .widget-label {
   color: #ff8fa3;
 }
 
+/* ─── Dark mode: content features (mensaje, razón, carta, aventura) ─── */
+body.dark-mode .daily-msg-box,
+body.dark-mode .reason-text,
+body.dark-mode .letter-container,
+body.dark-mode .adventure-container {
+  background: rgba(60, 35, 70, 0.85);
+  border-color: rgba(255, 141, 163, 0.45);
+  color: #f5e8ef;
+}
+body.dark-mode .adventure-chapter {
+  color: #ff8fa3;
+}
+body.dark-mode .adventure-text {
+  color: #f5e8ef;
+}
+body.dark-mode .adventure-choice {
+  background: rgba(80, 45, 90, 0.7);
+  color: #ffb3c1;
+  border-color: rgba(255, 141, 163, 0.5);
+}
+body.dark-mode .adventure-choice:hover,
+body.dark-mode .adventure-choice:focus-visible {
+  background: rgba(100, 55, 110, 0.85);
+  color: #ffffff;
+}
+body.dark-mode .letter-container::before,
+body.dark-mode .letter-container::after {
+  filter: brightness(1.1);
+}
+
 /* ════════════════════════════════════════
    CUSTOM HEART CURSOR
    ════════════════════════════════════════ */
